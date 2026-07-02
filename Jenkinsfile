@@ -119,6 +119,23 @@ pipeline {
       }
     }
 
+    stage('Code Quality Artifact Publish') {
+      steps {
+        bat '''
+        "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File "%WORKSPACE%\\scripts\\ci\\Write-SystemHealthCodeQualityArtifacts.ps1" -Workspace "%WORKSPACE%" -OutputRoot "C:\\ProgramData\\Jenkins\\.jenkins\\fhx-system-health\\SystemHealth\\latest" -BuildNumber "%BUILD_NUMBER%" -BuildUrl "%BUILD_URL%" -Branch "main" -Commit "%GIT_COMMIT%"
+        if errorlevel 1 exit /b %errorlevel%
+        '''
+        powershell '''
+        $ErrorActionPreference = 'Stop'
+        $manifest = 'C:\ProgramData\Jenkins\.jenkins\fhx-system-health\SystemHealth\latest\manifest.json'
+        if (-not (Test-Path -LiteralPath $manifest)) {
+          throw "Code Quality manifest was not created: $manifest"
+        }
+        '''
+        archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt', allowEmptyArchive: false, fingerprint: true
+      }
+    }
+
     stage('Publish') {
       steps {
         bat '''
