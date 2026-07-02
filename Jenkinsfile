@@ -290,6 +290,44 @@ pipeline {
           Invoke-NativeChecked -Label "Grant Jenkins log read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($BuildsRoot, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
         }
 
+        function Remove-UnsafeRollbackSnapshotFiles {
+          param([Parameter(Mandatory=$true)][string]$RollbackRoot)
+
+          $reservedDeviceNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          foreach ($name in @('CON', 'PRN', 'AUX', 'NUL')) {
+            [void]$reservedDeviceNames.Add($name)
+          }
+          1..9 | ForEach-Object {
+            [void]$reservedDeviceNames.Add("COM$_")
+            [void]$reservedDeviceNames.Add("LPT$_")
+          }
+
+          $blockedExtensions = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+          foreach ($extension in @('.cer', '.crt', '.key', '.pem', '.pfx', '.p12')) {
+            [void]$blockedExtensions.Add($extension)
+          }
+
+          $removed = 0
+          Get-ChildItem -LiteralPath $RollbackRoot -Recurse -File -Force | ForEach-Object {
+            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+            if (-not $reservedDeviceNames.Contains($baseName) -and -not $blockedExtensions.Contains($_.Extension)) {
+              return
+            }
+
+            $deletePath = if ($_.FullName.StartsWith('\\', [StringComparison]::Ordinal)) {
+              '\\?\UNC\' + $_.FullName.TrimStart('\')
+            } else {
+              '\\?\' + $_.FullName
+            }
+
+            [System.IO.File]::Delete($deletePath)
+            $removed++
+            Write-Host "Removed unsafe rollback snapshot file: $($_.FullName)"
+          }
+
+          Write-Host "Rollback snapshot unsafe file cleanup removed $removed file(s)."
+        }
+
         $source = Join-Path $env:WORKSPACE $env:PUBLISH_DIR
         $target = $env:TEST12_PATH
         $appPool = $env:TEST12_APPPOOL
@@ -351,9 +389,22 @@ pipeline {
             'appsettings.json',
             'appsettings.Development.json',
             'appsettings.Production.json',
-            'appsettings.*.json'
+            'appsettings.*.json',
+            '*.cer',
+            '*.crt',
+            '*.key',
+            '*.pem',
+            '*.pfx',
+            '*.p12',
+            'AUX.*',
+            'CON.*',
+            'NUL.*',
+            'PRN.*',
+            'COM?.*',
+            'LPT?.*'
           )
           Invoke-RobocopyChecked -Label 'SystemHealth Test12 rollback snapshot' -Arguments $rollbackArgs
+          Remove-UnsafeRollbackSnapshotFiles -RollbackRoot $rollbackRoot
 
           '<html><body>Deployment in progress.</body></html>' | Set-Content -LiteralPath $appOffline -Encoding UTF8
 
@@ -399,7 +450,7 @@ pipeline {
           Invoke-NativeChecked -Label "Start app pool $appPool" -FilePath $appcmd -Arguments @('start', 'apppool', "/apppool.name:$appPool") -AcceptedExitCodes 0
         }
         '''
-        archiveArtifacts artifacts: '_jenkins/_rollback/**', allowEmptyArchive: false, fingerprint: true
+        archiveArtifacts artifacts: '_jenkins/_rollback/**', allowEmptyArchive: false
       }
     }
 
