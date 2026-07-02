@@ -14,7 +14,8 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
     return options;
 });
 builder.Services.AddSingleton<SystemHealthSnapshots>();
-builder.Services.AddSingleton<CodeQualitySecurityService>();
+builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
+builder.Services.AddHttpClient<CRM.Application.SystemHealth.CodeQualitySecurityService>();
 builder.Services.AddHttpClient("github", client =>
 {
     client.DefaultRequestHeaders.UserAgent.ParseAdd("SystemHealth-Test12/1.0");
@@ -29,7 +30,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 var api = app.MapGroup("/api/system-health");
-api.MapGet("/code-quality-security", (CodeQualitySecurityService service, CancellationToken cancellationToken) => service.GetAsync(cancellationToken));
+api.MapGet("/code-quality-security", (StandaloneCodeQualitySecurityEndpoint endpoint, string? application, string? applicationKey, string? environment, CancellationToken cancellationToken) => endpoint.GetAsync(application, applicationKey, environment, cancellationToken));
 api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots) => snapshots.JenkinsLog());
 api.MapGet("/test-results", (SystemHealthSnapshots snapshots) => snapshots.TestResults());
 api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
@@ -240,6 +241,7 @@ sealed class SystemHealthOptions
     public JenkinsOptions Jenkins { get; set; } = new();
     public SonarQubeOptions SonarQube { get; set; } = new();
     public ArtifactOptions Artifacts { get; set; } = new();
+    public CodeQualitySecurityRuntimeOptions CodeQualitySecurity { get; set; } = new();
 }
 
 sealed class RepositoryOptions
@@ -274,6 +276,25 @@ sealed class ArtifactOptions
     public string CycloneDxBomPath { get; set; } = string.Empty;
     public string PlaywrightReportPath { get; set; } = string.Empty;
     public string AiCodeAnalysisPath { get; set; } = string.Empty;
+}
+
+sealed class CodeQualitySecurityRuntimeOptions
+{
+    public string JenkinsWorkspaceRoot { get; set; } = @"C:\ProgramData\Jenkins\.jenkins\workspace";
+    public string JenkinsHomeRoot { get; set; } = @"C:\ProgramData\Jenkins\.jenkins";
+    public string SystemHealthArtifactRoot { get; set; } = @"C:\ProgramData\Jenkins\.jenkins\fhx-system-health";
+    public string DependencyCheckToolPath { get; set; } = @"C:\OWASP\DependencyCheck\bin\dependency-check.bat";
+    public string GitHubGraphQlUrl { get; set; } = "https://api.github.com/graphql";
+    public string GitHubDashboardUrl { get; set; } = "https://github.com/orgs/MyLifeStoryVault-Ltd/security/overview";
+    public int SnapshotCacheSeconds { get; set; } = 120;
+    public string DependencyCheckExpectedProjectName { get; set; } = "My-Life-Story-Vault";
+    public string[] DependencyCheckExpectedScanFiles { get; set; } = Array.Empty<string>();
+    public int DependencyCheckMinimumDependenciesScanned { get; set; } = 20;
+    public int DependencyCheckMaximumReportAgeHours { get; set; } = 48;
+    public bool DependencyCheckRequirePackageLock { get; set; } = true;
+    public bool DependencyCheckRequireNodeModules { get; set; }
+    public int PlaywrightMaximumReportAgeHours { get; set; } = 24;
+    public int LintMaximumReportAgeHours { get; set; } = 24;
 }
 
 sealed class CriticalHealthEventRequest

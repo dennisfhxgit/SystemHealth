@@ -62,10 +62,16 @@ MyLifeStoryVault-Ltd/My-Life-Story-Vault
 
 ## Code Quality & Security Wiring
 
-- `/api/system-health/code-quality-security` now reads live SonarQube data when `SystemHealth__SonarQube__BaseUrl`, `SystemHealth__SonarQube__ProjectKey`, and `SystemHealth__SonarQube__Token` are configured at runtime.
-- The endpoint reads GitHub Dependabot, CodeQL, and Secret Scanning alerts for `MyLifeStoryVault-Ltd/My-Life-Story-Vault` when `SystemHealth__Repository__GitHubToken` is configured at runtime.
-- The endpoint parses configured Jenkins artifacts for Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright rather than returning placeholder rows.
+- `/api/system-health/code-quality-security` now uses the CRM-Test-Two hardened `CodeQualitySecurityService`, `CodeQualityGitHubSecurityClient`, `CodeQualitySonarClient`, and DTO contract.
+- The standalone adapter maps only `my-life-story-vault` to `MyLifeStoryVault-Ltd/My-Life-Story-Vault` with Sonar project `MyLifeStoryVault-Ltd_My-Life-Story-Vault`.
+- The endpoint reads live SonarQube data when `SystemHealth__SonarQube__BaseUrl`, `SystemHealth__SonarQube__ProjectKey`, and `SystemHealth__SonarQube__Token` are configured at runtime.
+- The endpoint reads GitHub Dependabot, CodeQL freshness/alerts, and Secret Scanning alerts for `MyLifeStoryVault-Ltd/My-Life-Story-Vault` when `SystemHealth__Repository__GitHubToken` is configured at runtime.
+- The endpoint uses the CRM hardened artifact discovery/trust logic for Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright rather than returning placeholder rows.
+- The Jenkinsfile now checks out `https://github.com/MyLifeStoryVault-Ltd/My-Life-Story-Vault.git` at `main`, verifies the checkout is exactly `origin/main`, runs the MyLifeStoryVault backend/mobile restore, lint, coverage, build, and type-safety gates, then archives the CRM-compatible `_jenkins/lint`, `_jenkins/sbom`, and `_jenkins/dependency-check` artifacts consumed by the endpoint.
+- The artifact producer is `scripts/ci/Write-MyLifeStoryVaultCodeQualityArtifacts.ps1`; it writes `lint-report.json`, a CycloneDX SBOM, and OWASP Dependency-Check reports for `My-Life-Story-Vault`.
+- The artifact producer has hard command timeouts: restore commands default to 10 minutes, normal lint/test/build commands default to 5 minutes, Dependency-Check defaults to 15 minutes, and the Jenkins stage has a 45-minute cap. A timeout is written into `lint-report.json` as a failing finding instead of leaving the build stuck without artifacts.
 - Missing provider credentials or missing artifact paths are reported as `Unavailable`; they are not treated as healthy zero-finding results.
+- The old `MyLifeStoryVaultTest` Jenkins job that points at `dennisfhxgit/MyLifeStoryVaultTest` is not used. Code Quality & Security for this standalone app is produced by the `SystemHealth` pipeline against `MyLifeStoryVault-Ltd/My-Life-Story-Vault`.
 
 ## Verification Results
 
@@ -77,10 +83,12 @@ MyLifeStoryVault-Ltd/My-Life-Story-Vault
 - Backend build command and result: `dotnet build SystemHealth.sln -c Release` passed with 0 warnings and 0 errors.
 - Backend test command and result: `dotnet test SystemHealth.sln -c Release --no-build` exited successfully; no backend test project exists yet.
 - Publish command and result: `dotnet publish SystemHealth.Api\SystemHealth.Api.csproj -c Release -o _publish` passed after rerunning serially. The first parallel build/publish attempt hit a transient static asset compression file lock.
-- Code Quality & Security smoke-test result: local published app on `http://127.0.0.1:5012` returned HTTP 200 for `/api/system-health/code-quality-security`, reported repository `MyLifeStoryVault-Ltd/My-Life-Story-Vault`, Sonar project `MyLifeStoryVault-Ltd_My-Life-Story-Vault`, and provider statuses for SonarQube, GitHub Dependabot, GitHub CodeQL, GitHub Secret Scanning, Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright.
+- Code Quality & Security producer syntax check: PowerShell parser validation passed for `scripts/ci/Write-MyLifeStoryVaultCodeQualityArtifacts.ps1`.
+- Old vault reference scan: no configured source references to `MyLifeStoryVaultTest` or `dennisfhxgit/MyLifeStoryVaultTest` remain outside this evidence file.
+- Code Quality & Security smoke-test result: local published app on `http://127.0.0.1:5012` returned HTTP 200 for `/api/system-health/code-quality-security?applicationKey=my-life-story-vault&environment=Development`, reported selected application `my-life-story-vault`, GitHub repository `My-Life-Story-Vault`, Sonar component `MyLifeStoryVault-Ltd_My-Life-Story-Vault`, and provider statuses for SonarQube, GitHub Dependabot, GitHub CodeQL, GitHub Secret Scanning, Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright.
 - Endpoint smoke-test results: local published app on `http://127.0.0.1:5012` returned HTTP 200 for `/health`, `/`, `/api/system-health/code-quality-security`, `/api/system-health/system-alerts`, `/api/system-health/admin-environment`, `/api/system-health/email-workers`, `/api/system-health/critical-events`, `/api/system-health/backups`, `/api/system-health/jenkins-log`, `/api/system-health/test-results`, `/api/system-health/artifact-history`, and `/api/system-health/ai-code-analysis`.
 - Refresh/deep-link routing: local published app returned HTTP 200 and the Vue root for `/system-health`, `/system-health/code-quality-security`, and `/anything/deep/link`.
-- Deployment notes: source includes a Jenkins `SystemHealth` pipeline that checks out `dennisfhxgit/SystemHealth` `master`, runs frontend install/typecheck/lint/test/build, runs backend restore/build/test/publish, deploys the publish artifact to `W:\vhosts\fhx.co.nz\test12.fhx.co.nz`, restarts app pool `test12.fhx.co.nz(domain)(4.0)(pool)`, and runs Test12 endpoint/deep-link smoke checks. The live Jenkins `SystemHealth` job config was changed from an empty flow definition to an SCM pipeline that loads this repo `Jenkinsfile`; the previous config was backed up under `C:\Users\mldconst\Desktop\Handovers\JenkinsConfigBackups`.
+- Deployment notes: source includes a Jenkins `SystemHealth` pipeline that checks out `dennisfhxgit/SystemHealth` `master`, checks out `MyLifeStoryVault-Ltd/My-Life-Story-Vault` `main` for Code Quality & Security artifacts, runs frontend install/typecheck/lint/test/build, runs backend restore/build/test/publish, deploys the publish artifact to `W:\vhosts\fhx.co.nz\test12.fhx.co.nz`, restarts app pool `test12.fhx.co.nz(domain)(4.0)(pool)`, and runs Test12 endpoint/deep-link smoke checks. The live Jenkins `SystemHealth` job config was changed from an empty flow definition to an SCM pipeline that loads this repo `Jenkinsfile`; the previous config was backed up under `C:\Users\mldconst\Desktop\Handovers\JenkinsConfigBackups`.
 - Test12 route load: not run because the app has not been deployed to a live Test12 target in this task.
 
 ## Scope Boundary
@@ -89,4 +97,4 @@ Test10 and MLSCTest10 were not modified.
 
 ## Blockers
 
-- Live Test12 deployment verification depends on running the Jenkins `SystemHealth` job. Jenkins API access from this session returned HTTP 403, so the job was not triggered from Codex.
+- None in source. The next live `SystemHealth` Jenkins build will produce and archive the Code Quality & Security artifacts before deployment.
