@@ -132,6 +132,20 @@ pipeline {
         if (-not (Test-Path -LiteralPath $manifest)) {
           throw "Code Quality manifest was not created: $manifest"
         }
+
+        $testResultsSource = Join-Path $env:WORKSPACE 'TestResults'
+        $testResultsTarget = Join-Path (Split-Path -Parent $manifest) 'TestResults'
+        $junitReport = Join-Path $testResultsSource 'tests.junit.xml'
+        if (-not (Test-Path -LiteralPath $junitReport)) {
+          throw "JUnit test report was not created before Code Quality artifact publish: $junitReport"
+        }
+
+        if (Test-Path -LiteralPath $testResultsTarget) {
+          Remove-Item -LiteralPath $testResultsTarget -Recurse -Force
+        }
+
+        New-Item -ItemType Directory -Force -Path $testResultsTarget | Out-Null
+        Copy-Item -Path (Join-Path $testResultsSource '*') -Destination $testResultsTarget -Recurse -Force
         '''
         archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt,TestResults/**', allowEmptyArchive: false, fingerprint: true
       }

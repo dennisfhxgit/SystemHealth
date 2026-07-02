@@ -38,7 +38,7 @@ sealed class StandaloneCodeQualitySecurityEndpoint
             JenkinsHomeRoot = _options.CodeQualitySecurity.JenkinsHomeRoot,
             SystemHealthArtifactRoot = _options.CodeQualitySecurity.SystemHealthArtifactRoot,
             DependencyCheckToolPath = _options.CodeQualitySecurity.DependencyCheckToolPath,
-            GitHubToken = _options.Repository.GitHubToken,
+            GitHubToken = FirstConfigured(_options.Repository.GitHubToken, _options.CodeQualitySecurity.GitHubToken),
             GitHubOrganization = _options.Repository.Owner,
             GitHubRestApiUrl = _options.Repository.GitHubApiBaseUrl,
             GitHubGraphQlUrl = _options.CodeQualitySecurity.GitHubGraphQlUrl,
@@ -115,5 +115,10 @@ sealed class StandaloneCodeQualitySecurityEndpoint
         return string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(apiToken)
             ? string.Empty
             : $"{userName}:{apiToken}";
+    }
+
+    private static string FirstConfigured(params string[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? string.Empty;
     }
 }

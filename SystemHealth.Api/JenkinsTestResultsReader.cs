@@ -49,6 +49,7 @@ sealed class JenkinsTestResultsReader
         try
         {
             var report = await TryLoadRemoteReportAsync(options.Jenkins, jobName, selectedBuildId, cancellationToken)
+                ?? await TryLoadSystemHealthArtifactReportAsync(options, selectedBuildId, cancellationToken)
                 ?? await TryLoadLocalReportAsync(options, jobName, selectedBuildId, cancellationToken);
 
             if (report is null)
@@ -58,7 +59,7 @@ sealed class JenkinsTestResultsReader
                     selectedEnvironment,
                     selectedBuildId,
                     jobName,
-                    "Jenkins test results were not found in Jenkins testReport or archived TestResults artifacts.");
+                    "Jenkins test results were not found in Jenkins testReport, SystemHealth artifact root, or archived TestResults artifacts.");
             }
 
             return CreateSnapshot(ApplicationKey, selectedEnvironment, jobName, report);
@@ -121,6 +122,63 @@ sealed class JenkinsTestResultsReader
         return new JenkinsTestReport(metadata.BuildId, metadata.Commit, metadata.Branch, metadata.Timestamp, cases);
     }
 
+    private static async Task<JenkinsTestReport?> TryLoadSystemHealthArtifactReportAsync(
+        SystemHealthOptions options,
+        string buildId,
+        CancellationToken cancellationToken)
+    {
+        var artifactRoot = Path.Combine(options.CodeQualitySecurity.SystemHealthArtifactRoot, "latest");
+        if (!Directory.Exists(artifactRoot))
+        {
+            return null;
+        }
+
+        var metadata = ReadSystemHealthArtifactMetadata(artifactRoot, buildId);
+        if (!string.Equals(buildId, LastBuildId, StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(buildId, metadata.BuildId, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var cases = ReadTestCasesFromRoot(artifactRoot);
+        await Task.CompletedTask.WaitAsync(cancellationToken);
+        return cases.Length == 0
+            ? null
+            : new JenkinsTestReport(metadata.BuildId, metadata.Commit, metadata.Branch, metadata.Timestamp, cases);
+    }
+
+    private static JenkinsTestReportMetadata ReadSystemHealthArtifactMetadata(string artifactRoot, string requestedBuildId)
+    {
+        var manifestPath = Path.Combine(artifactRoot, "manifest.json");
+        if (!File.Exists(manifestPath))
+        {
+            return new JenkinsTestReportMetadata(requestedBuildId, string.Empty, string.Empty, null);
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(manifestPath));
+            var root = document.RootElement;
+            var buildNumber = ReadString(root, "buildNumber");
+            var commit = ReadString(root, "commit");
+            var branch = ReadString(root, "branch");
+            var publishedAtUtc = ReadString(root, "publishedAtUtc");
+            var timestamp = DateTimeOffset.TryParse(publishedAtUtc, out var parsedTimestamp)
+                ? parsedTimestamp.LocalDateTime
+                : (DateTime?)null;
+
+            return new JenkinsTestReportMetadata(
+                string.IsNullOrWhiteSpace(buildNumber) ? requestedBuildId : buildNumber,
+                commit,
+                branch,
+                timestamp);
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or InvalidOperationException)
+        {
+            return new JenkinsTestReportMetadata(requestedBuildId, string.Empty, string.Empty, null);
+        }
+    }
+
     private static string? ResolveLocalBuildDirectory(string buildsRoot, string buildId)
     {
         if (!string.Equals(buildId, LastBuildId, StringComparison.OrdinalIgnoreCase))
@@ -174,9 +232,14 @@ sealed class JenkinsTestResultsReader
 
     private static JenkinsTestCase[] ReadLocalArchivedTestCases(string buildDirectory)
     {
+        return ReadTestCasesFromRoot(Path.Combine(buildDirectory, "archive"));
+    }
+
+    private static JenkinsTestCase[] ReadTestCasesFromRoot(string rootDirectory)
+    {
         foreach (var relativePath in TestResultArtifactCandidates)
         {
-            var artifactPath = Path.Combine(buildDirectory, "archive", relativePath.Replace('/', Path.DirectorySeparatorChar));
+            var artifactPath = Path.Combine(rootDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
             if (!File.Exists(artifactPath))
             {
                 continue;

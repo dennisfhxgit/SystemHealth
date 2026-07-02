@@ -266,6 +266,7 @@ sealed class ArtifactOptions
 
 sealed class CodeQualitySecurityRuntimeOptions
 {
+    public string GitHubToken { get; set; } = string.Empty;
     public string JenkinsWorkspaceRoot { get; set; } = @"C:\ProgramData\Jenkins\.jenkins\workspace";
     public string JenkinsHomeRoot { get; set; } = @"C:\ProgramData\Jenkins\.jenkins";
     public string SystemHealthArtifactRoot { get; set; } = @"C:\ProgramData\Jenkins\.jenkins\fhx-system-health";
