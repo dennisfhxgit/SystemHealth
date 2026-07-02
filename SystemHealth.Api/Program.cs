@@ -250,8 +250,8 @@ sealed class JenkinsOptions
 
 sealed class SonarQubeOptions
 {
-    public string BaseUrl { get; set; } = string.Empty;
-    public string ProjectKey { get; set; } = "MyLifeStoryVault-Ltd_My-Life-Story-Vault";
+    public string BaseUrl { get; set; } = "https://sonarqube.fhx.co.nz";
+    public string ProjectKey { get; set; } = "My-Life-Story-Vault";
     public string Token { get; set; } = string.Empty;
 }
 

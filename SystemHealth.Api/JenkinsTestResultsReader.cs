@@ -49,7 +49,7 @@ sealed class JenkinsTestResultsReader
         try
         {
             var report = await TryLoadRemoteReportAsync(options.Jenkins, jobName, selectedBuildId, cancellationToken)
-                ?? await TryLoadSystemHealthArtifactReportAsync(options, selectedBuildId, cancellationToken)
+                ?? await TryLoadSystemHealthArtifactReportAsync(options, jobName, selectedBuildId, cancellationToken)
                 ?? await TryLoadLocalReportAsync(options, jobName, selectedBuildId, cancellationToken);
 
             if (report is null)
@@ -124,10 +124,16 @@ sealed class JenkinsTestResultsReader
 
     private static async Task<JenkinsTestReport?> TryLoadSystemHealthArtifactReportAsync(
         SystemHealthOptions options,
+        string jobName,
         string buildId,
         CancellationToken cancellationToken)
     {
-        var artifactRoot = Path.Combine(options.CodeQualitySecurity.SystemHealthArtifactRoot, "latest");
+        var artifactRoot = Path.Combine(options.CodeQualitySecurity.SystemHealthArtifactRoot, jobName, "latest");
+        if (!Directory.Exists(artifactRoot))
+        {
+            artifactRoot = Path.Combine(options.CodeQualitySecurity.SystemHealthArtifactRoot, "latest");
+        }
+
         if (!Directory.Exists(artifactRoot))
         {
             return null;
