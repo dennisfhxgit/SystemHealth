@@ -329,10 +329,11 @@ sealed partial class StandaloneSystemAlertsReader
     {
         if (string.IsNullOrWhiteSpace(options.DataServerMetricsUrl))
         {
-            checks.Add(Check(DataServerMetricsEndpoint, DataServerSource, HealthyStatus, "Using local collector-backed server drive metrics because no separate Data Server metrics endpoint is configured."));
+            checks.Add(Check(DataServerMetricsEndpoint, DataServerSource, WarningStatus, "Data Server metrics endpoint is not configured."));
+            alerts.Add(Alert("data-server-metrics-not-configured", DataServerSource, HighSeverity, "Data Server metrics endpoint is not configured.", timestampUtc));
             return new DataServerMetricsResult
             {
-                Drives = LoadDriveMetrics(options, options.DataServerDriveLetters, DataServerSource, alerts, timestampUtc)
+                Drives = BuildMissingDataServerDrives(options, checks, alerts, timestampUtc)
             };
         }
 

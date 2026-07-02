@@ -175,6 +175,7 @@ $playwrightReportPath = Join-Path $playwrightDir "playwright-results.json"
     dependencyCheckPath = "dependency-check/dependency-check-report.json"
     cycloneDxBomPath = "sbom/bom.json"
     lintReportPath = "lint/lint-report.json"
+    codeAnalysisPath = "ai-code-analysis.json"
     publishedAtUtc = $generatedAtUtc
     reports = [ordered]@{
         playwright = "playwright/playwright-results.json"
@@ -184,6 +185,7 @@ $playwrightReportPath = Join-Path $playwrightDir "playwright-results.json"
         sbom = "sbom/bom.json"
         lint = "lint/lint-report.json"
         lintReport = "lint/lint-report.json"
+        aiCodeAnalysis = "ai-code-analysis.json"
     }
 } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $OutputRoot "manifest.json") -Encoding UTF8
 

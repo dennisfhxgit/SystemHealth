@@ -146,8 +146,21 @@ pipeline {
 
         New-Item -ItemType Directory -Force -Path $testResultsTarget | Out-Null
         Copy-Item -Path (Join-Path $testResultsSource '*') -Destination $testResultsTarget -Recurse -Force
+
+        $aiCodeAnalysisArtifact = Join-Path $env:WORKSPACE '_jenkins/ai-code-analysis.json'
+        & (Join-Path $env:WORKSPACE 'scripts/ci/Write-AiCodeAnalysisArtifact.ps1') `
+          -Workspace $env:WORKSPACE `
+          -ArtifactPath $aiCodeAnalysisArtifact `
+          -BuildNumber $env:BUILD_NUMBER `
+          -Branch $env:BRANCH_NAME_GOVERNED `
+          -Commit $env:GIT_COMMIT
+        if (-not (Test-Path -LiteralPath $aiCodeAnalysisArtifact)) {
+          throw "AI Code Analysis artifact was not created: $aiCodeAnalysisArtifact"
+        }
+
+        Copy-Item -LiteralPath $aiCodeAnalysisArtifact -Destination (Join-Path (Split-Path -Parent $manifest) 'ai-code-analysis.json') -Force
         '''
-        archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt,TestResults/**', allowEmptyArchive: false, fingerprint: true
+        archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt,_jenkins/ai-code-analysis.json,TestResults/**', allowEmptyArchive: false, fingerprint: true
       }
     }
 

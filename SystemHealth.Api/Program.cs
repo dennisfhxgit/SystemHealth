@@ -16,6 +16,7 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
 builder.Services.AddHttpClient<JenkinsTestResultsReader>();
 builder.Services.AddHttpClient<JenkinsLogReader>();
 builder.Services.AddHttpClient<JenkinsArtifactHistoryReader>();
+builder.Services.AddHttpClient<JenkinsAiCodeAnalysisReader>();
 builder.Services.AddHttpClient<StandaloneSystemAlertsReader>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
@@ -37,7 +38,8 @@ var api = app.MapGroup("/api/system-health");
 api.MapGet("/code-quality-security", (StandaloneCodeQualitySecurityEndpoint endpoint, string? application, string? applicationKey, string? environment, CancellationToken cancellationToken) => endpoint.GetAsync(application, applicationKey, environment, cancellationToken));
 api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.JenkinsLogAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/test-results", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.TestResultsAsync(application ?? applicationKey, environment, buildId, cancellationToken));
-api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
+api.MapGet("/ai-code-analysis", async (JenkinsAiCodeAnalysisReader reader, SystemHealthOptions options, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) =>
+    Results.Json(await reader.GetAsync(options, application ?? applicationKey, environment, buildId, cancellationToken)));
 api.MapGet("/system-alerts", async (StandaloneSystemAlertsReader reader, CancellationToken cancellationToken) => Results.Json(await reader.GetAsync(cancellationToken)));
 api.MapGet("/admin-environment", (SystemHealthOptions options) => Results.Json(SystemHealthSnapshots.AdminEnvironment(options)));
 api.MapGet("/email-workers", () => Results.Json(SystemHealthSnapshots.EmailWorkers()));
@@ -99,30 +101,6 @@ sealed class SystemHealthSnapshots
         return Results.Json(await _testResultsReader.GetAsync(_options, applicationKey, environment, buildId, cancellationToken));
     }
 
-    public IResult AiCodeAnalysis()
-    {
-        var artifactConfigured = IsConfigured(_options.Artifacts.AiCodeAnalysisPath);
-        return Results.Json(new
-        {
-            status = artifactConfigured ? "Warning" : "Warning",
-            statusDetail = artifactConfigured ? "AI code analysis artifact path is configured; live parsing is not enabled until Test12 runtime artifacts are present." : "ai-code-analysis.json was not found because the artifact path is not configured.",
-            selectedApplicationKey = ApplicationKey,
-            selectedEnvironment = EnvironmentName,
-            applications = Applications(),
-            environments = Environments(),
-            providerName = "Jenkins archived AI analysis artifact",
-            jobName = _options.Jenkins.JobName,
-            buildId = "Last Build",
-            findings = Array.Empty<object>(),
-            checks = new[]
-            {
-                new { name = "Artifact Path", category = "Runtime", status = artifactConfigured ? "Warning" : "Unavailable", detail = artifactConfigured ? "Path configured; artifact must be present at runtime." : "ai-code-analysis.json was not found because no artifact path is configured." },
-                new { name = "Repository Scope", category = "Source", status = "Healthy", detail = $"{_options.Repository.Owner}/{_options.Repository.Name}" }
-            },
-            severityCounts = SeverityCounts()
-        });
-    }
-
     public async Task<IResult> ArtifactHistoryAsync(string? applicationKey, string? environment, int? buildCount, CancellationToken cancellationToken)
     {
         return Results.Json(await _artifactHistoryReader.GetAsync(_options, applicationKey, environment, buildCount, cancellationToken));
@@ -168,8 +146,6 @@ sealed class SystemHealthSnapshots
 
     private static object[] Applications() => new[] { new { key = ApplicationKey, label = ApplicationLabel } };
     private static string[] Environments() => new[] { EnvironmentName };
-    private static object[] SeverityCounts() => new[] { new { severity = "Critical", count = 0 }, new { severity = "High", count = 0 }, new { severity = "Medium", count = 0 }, new { severity = "Low", count = 0 } };
-    private static bool IsConfigured(string? value) => !string.IsNullOrWhiteSpace(value);
 }
 
 sealed class SystemHealthOptions
@@ -249,7 +225,7 @@ sealed class SystemAlertsOptions
     public int ProcessCpuCriticalPercent { get; set; } = 90;
     public string DeploymentRootPath { get; set; } = string.Empty;
     public string[] ApplicationServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
-    public string[] DataServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
+    public string[] DataServerDriveLetters { get; set; } = ["C:\\", "D:\\", "L:\\"];
     public string ApplicationServerMetricsSnapshotPath { get; set; } = @"C:\ProgramData\FHX\SystemHealth\test11-application-server-metrics.json";
     public int ApplicationServerMetricsSnapshotMaxAgeMinutes { get; set; } = 30;
     public string DataServerMetricsUrl { get; set; } = string.Empty;
