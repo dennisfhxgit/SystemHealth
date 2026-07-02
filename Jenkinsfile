@@ -50,7 +50,6 @@ pipeline {
         $ErrorActionPreference = 'Stop'
 
         $generatedPaths = @(
-          '_jenkins',
           '_publish',
           'dist',
           'build_provenance.env',
