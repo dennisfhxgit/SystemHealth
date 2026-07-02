@@ -18,9 +18,6 @@ pipeline {
     API_PROJECT_PATH = 'SystemHealth.Api/SystemHealth.Api.csproj'
     PUBLISH_DIR = '_jenkins/publish/SystemHealth.Api'
     BUILD_CHECKOUT_COMMIT_FILE = '_jenkins/build-checkout-commit.txt'
-    CODE_QUALITY_REPO_URL = 'https://github.com/MyLifeStoryVault-Ltd/My-Life-Story-Vault.git'
-    CODE_QUALITY_BRANCH = 'main'
-    CODE_QUALITY_SOURCE_DIR = '_jenkins/code-quality-source'
     TEST12_PATH = 'W:/vhosts/fhx.co.nz/test12.fhx.co.nz'
     TEST12_APPPOOL = 'test12.fhx.co.nz(domain)(4.0)(pool)'
     TEST12_URL = 'https://test12.fhx.co.nz'
@@ -99,68 +96,6 @@ pipeline {
         bat 'dotnet restore "%SOLUTION_PATH%"'
         bat 'dotnet build "%SOLUTION_PATH%" -c Release --no-restore'
         bat 'dotnet test "%SOLUTION_PATH%" -c Release --no-build'
-      }
-    }
-
-    stage('Checkout MyLifeStoryVault Code Quality Target') {
-      steps {
-        retry(3) {
-          sleep time: 10, unit: 'SECONDS'
-          checkout([
-            $class: 'GitSCM',
-            branches: [[name: '*/main']],
-            userRemoteConfigs: [[
-              url: env.CODE_QUALITY_REPO_URL,
-              refspec: '+refs/heads/main:refs/remotes/origin/main'
-            ]],
-            extensions: [
-              [$class: 'RelativeTargetDirectory', relativeTargetDir: env.CODE_QUALITY_SOURCE_DIR],
-              [$class: 'CloneOption', shallow: false, noTags: true, timeout: 20, honorRefspec: true],
-              [$class: 'PruneStaleBranch']
-            ]
-          ])
-        }
-      }
-    }
-
-    stage('MyLifeStoryVault Code Quality Artifacts') {
-      options {
-        timeout(time: 45, unit: 'MINUTES')
-      }
-      steps {
-        powershell '''
-        $ErrorActionPreference = 'Stop'
-
-        $sourceRoot = Join-Path $env:WORKSPACE $env:CODE_QUALITY_SOURCE_DIR
-        if (-not (Test-Path -LiteralPath $sourceRoot)) {
-          throw "MyLifeStoryVault source checkout was not found: $sourceRoot"
-        }
-
-        $targetCommit = (git -C $sourceRoot rev-parse HEAD).Trim()
-        if ([string]::IsNullOrWhiteSpace($targetCommit)) {
-          throw 'MyLifeStoryVault target commit could not be resolved.'
-        }
-
-        git -C $sourceRoot fetch origin '+refs/heads/main:refs/remotes/origin/main' --prune
-        $targetTip = (git -C $sourceRoot rev-parse 'origin/main').Trim()
-        if ([string]$targetCommit -ne [string]$targetTip) {
-          throw "Governance breach: MyLifeStoryVault checkout $targetCommit is not exactly origin/main at $targetTip"
-        }
-
-        & (Join-Path $env:WORKSPACE 'scripts/ci/Write-MyLifeStoryVaultCodeQualityArtifacts.ps1') `
-          -SourceRoot $sourceRoot `
-          -Workspace $env:WORKSPACE `
-          -BuildNumber $env:BUILD_NUMBER `
-          -Branch $env:CODE_QUALITY_BRANCH `
-          -Commit $targetCommit `
-          -Environment 'Development' `
-          -Application 'my-life-story-vault'
-        '''
-      }
-      post {
-        always {
-          archiveArtifacts artifacts: '_jenkins/lint/**,_jenkins/sbom/**,_jenkins/dependency-check/**', allowEmptyArchive: true, fingerprint: true
-        }
       }
     }
 
