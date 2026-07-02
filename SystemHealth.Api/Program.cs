@@ -13,6 +13,7 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
     sp.GetRequiredService<IConfiguration>().GetSection("SystemHealth").Bind(options);
     return options;
 });
+builder.Services.AddHttpClient<JenkinsTestResultsReader>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
 builder.Services.AddHttpClient<CRM.Application.SystemHealth.CodeQualitySecurityService>();
@@ -32,7 +33,7 @@ app.UseStaticFiles();
 var api = app.MapGroup("/api/system-health");
 api.MapGet("/code-quality-security", (StandaloneCodeQualitySecurityEndpoint endpoint, string? application, string? applicationKey, string? environment, CancellationToken cancellationToken) => endpoint.GetAsync(application, applicationKey, environment, cancellationToken));
 api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots) => snapshots.JenkinsLog());
-api.MapGet("/test-results", (SystemHealthSnapshots snapshots) => snapshots.TestResults());
+api.MapGet("/test-results", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.TestResultsAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
 api.MapGet("/system-alerts", () => Results.Json(SystemHealthSnapshots.SystemAlerts()));
 api.MapGet("/admin-environment", (SystemHealthOptions options) => Results.Json(SystemHealthSnapshots.AdminEnvironment(options)));
@@ -73,10 +74,12 @@ sealed class SystemHealthSnapshots
     private const string ApplicationLabel = "My Life Story Vault";
     private const string EnvironmentName = "Development";
     private readonly SystemHealthOptions _options;
+    private readonly JenkinsTestResultsReader _testResultsReader;
 
-    public SystemHealthSnapshots(SystemHealthOptions options)
+    public SystemHealthSnapshots(SystemHealthOptions options, JenkinsTestResultsReader testResultsReader)
     {
         _options = options;
+        _testResultsReader = testResultsReader;
     }
 
     public IResult JenkinsLog()
@@ -96,26 +99,9 @@ sealed class SystemHealthSnapshots
         });
     }
 
-    public IResult TestResults()
+    public async Task<IResult> TestResultsAsync(string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken)
     {
-        return Results.Json(new
-        {
-            status = "Warning",
-            statusDetail = "Jenkins test-report access is not configured in source.",
-            selectedApplicationKey = ApplicationKey,
-            selectedEnvironment = EnvironmentName,
-            applications = Applications(),
-            environments = Environments(),
-            jobName = _options.Jenkins.JobName,
-            buildId = "Last Build",
-            totalTests = 0,
-            passedTests = 0,
-            failedTests = 0,
-            skippedTests = 0,
-            apiFunctionalResults = Array.Empty<object>(),
-            apiPerformanceResults = Array.Empty<object>(),
-            uiTestResults = Array.Empty<object>()
-        });
+        return Results.Json(await _testResultsReader.GetAsync(_options, applicationKey, environment, buildId, cancellationToken));
     }
 
     public IResult AiCodeAnalysis()

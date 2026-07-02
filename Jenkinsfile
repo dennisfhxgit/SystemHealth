@@ -106,7 +106,8 @@ pipeline {
       steps {
         bat 'npm run typecheck'
         bat 'npm run lint'
-        bat 'npm run test'
+        bat 'if not exist "%WORKSPACE%\\TestResults" mkdir "%WORKSPACE%\\TestResults"'
+        bat 'npm run test -- --reporter=default --reporter=junit --outputFile="%WORKSPACE%\\TestResults\\tests.junit.xml"'
         bat 'npm run build'
       }
     }
@@ -115,7 +116,7 @@ pipeline {
       steps {
         bat 'dotnet restore "%SOLUTION_PATH%"'
         bat 'dotnet build "%SOLUTION_PATH%" -c Release --no-restore'
-        bat 'dotnet test "%SOLUTION_PATH%" -c Release --no-build'
+        bat 'dotnet test "%SOLUTION_PATH%" -c Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory "%WORKSPACE%\\TestResults"'
       }
     }
 
@@ -132,7 +133,7 @@ pipeline {
           throw "Code Quality manifest was not created: $manifest"
         }
         '''
-        archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt', allowEmptyArchive: false, fingerprint: true
+        archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt,TestResults/**', allowEmptyArchive: false, fingerprint: true
       }
     }
 
