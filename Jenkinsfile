@@ -49,6 +49,27 @@ pipeline {
         powershell '''
         $ErrorActionPreference = 'Stop'
 
+        $generatedPaths = @(
+          '_jenkins',
+          '_publish',
+          'dist',
+          'build_provenance.env',
+          'tsconfig.tsbuildinfo'
+        )
+
+        $workspaceRoot = [System.IO.Path]::GetFullPath($env:WORKSPACE).TrimEnd('\\', '/')
+        foreach ($relativePath in $generatedPaths) {
+          $fullPath = [System.IO.Path]::GetFullPath((Join-Path $env:WORKSPACE $relativePath))
+          if (-not $fullPath.StartsWith($workspaceRoot, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean path outside workspace: $fullPath"
+          }
+
+          if (Test-Path -LiteralPath $fullPath) {
+            Remove-Item -LiteralPath $fullPath -Recurse -Force
+            Write-Host "Removed stale generated path: $relativePath"
+          }
+        }
+
         $commit = (git rev-parse HEAD).Trim()
         if ([string]::IsNullOrWhiteSpace($commit)) {
           throw 'Checked-out commit could not be resolved.'

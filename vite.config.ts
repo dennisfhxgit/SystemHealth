@@ -13,6 +13,14 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    globals: true
+    globals: true,
+    include: ['src/**/*.{test,spec}.?(c|m)[jt]s?(x)'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/_jenkins/**',
+      '**/_publish/**',
+      '**/SystemHealth.Api/**'
+    ]
   }
 })
