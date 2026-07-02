@@ -370,7 +370,7 @@ sealed class JenkinsAiCodeAnalysisReader
             .Where(element => element.ValueKind == JsonValueKind.Object)
             .Select(element => new AiCodeAnalysisFinding
             {
-                Severity = FirstNonEmpty(GetString(element, "severity"), GetString(element, "level"), "Info"),
+                Severity = NormalizeAiSeverity(FirstNonEmpty(GetString(element, "severity"), GetString(element, "level"), "Info")),
                 Confidence = GetString(element, "confidence"),
                 Category = FirstNonEmpty(GetString(element, "category"), GetString(element, "type"), GetString(element, "rule")),
                 File = FirstNonEmpty(GetString(element, "file"), GetString(element, "filePath"), GetString(element, "path")),
@@ -390,10 +390,13 @@ sealed class JenkinsAiCodeAnalysisReader
                 .Where(element => element.ValueKind == JsonValueKind.Object)
                 .Select(element => new AiCodeAnalysisSeverityCount
                 {
-                    Severity = GetString(element, "severity"),
+                    Severity = NormalizeAiSeverity(GetString(element, "severity")),
                     Count = GetInt32(element, "count")
                 })
                 .Where(count => !string.IsNullOrWhiteSpace(count.Severity))
+                .Concat(DefaultSeverityCounts())
+                .GroupBy(count => count.Severity, StringComparer.OrdinalIgnoreCase)
+                .Select(group => new AiCodeAnalysisSeverityCount { Severity = group.First().Severity, Count = group.Sum(count => count.Count) })
                 .OrderBy(count => SeverityRank(count.Severity))
                 .ThenBy(count => count.Severity, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
@@ -405,7 +408,7 @@ sealed class JenkinsAiCodeAnalysisReader
         }
 
         return findings
-            .GroupBy(finding => string.IsNullOrWhiteSpace(finding.Severity) ? "Info" : finding.Severity, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(finding => NormalizeAiSeverity(finding.Severity), StringComparer.OrdinalIgnoreCase)
             .Select(group => new AiCodeAnalysisSeverityCount { Severity = group.Key, Count = group.Count() })
             .Concat(DefaultSeverityCounts())
             .GroupBy(count => count.Severity, StringComparer.OrdinalIgnoreCase)
@@ -534,7 +537,7 @@ sealed class JenkinsAiCodeAnalysisReader
 
     private static int SeverityRank(string severity)
     {
-        return severity.ToUpperInvariant() switch
+        return NormalizeAiSeverity(severity).ToUpperInvariant() switch
         {
             "CRITICAL" => 0,
             "HIGH" => 1,
@@ -542,6 +545,18 @@ sealed class JenkinsAiCodeAnalysisReader
             "LOW" => 3,
             "INFO" or "INFORMATIONAL" => 4,
             _ => 5
+        };
+    }
+
+    private static string NormalizeAiSeverity(string severity)
+    {
+        return severity.Trim().ToUpperInvariant() switch
+        {
+            "BLOCKER" or "CRITICAL" => "Critical",
+            "HIGH" or "MAJOR" => "High",
+            "MEDIUM" or "MODERATE" or "MINOR" => "Medium",
+            "LOW" or "INFO" or "INFORMATIONAL" => "Low",
+            _ => string.IsNullOrWhiteSpace(severity) ? "Low" : severity.Trim()
         };
     }
 

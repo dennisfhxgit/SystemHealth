@@ -55,6 +55,8 @@ pipeline {
 
         $generatedPaths = @(
           '_publish',
+          '_rollback',
+          '_jenkins/_rollback',
           'dist',
           'build_provenance.env',
           'tsconfig.tsbuildinfo'
@@ -368,7 +370,7 @@ pipeline {
         }
 
         try {
-          $rollbackRoot = Join-Path $env:WORKSPACE "_jenkins/_rollback/$env:BUILD_NUMBER/website-current"
+          $rollbackRoot = Join-Path $env:WORKSPACE "_rollback/$env:BUILD_NUMBER/website-current"
           if (Test-Path -LiteralPath $rollbackRoot) {
             Remove-Item -LiteralPath $rollbackRoot -Recurse -Force
           }
@@ -450,7 +452,7 @@ pipeline {
           Invoke-NativeChecked -Label "Start app pool $appPool" -FilePath $appcmd -Arguments @('start', 'apppool', "/apppool.name:$appPool") -AcceptedExitCodes 0
         }
         '''
-        archiveArtifacts artifacts: '_jenkins/_rollback/**', allowEmptyArchive: false
+        archiveArtifacts artifacts: '_rollback/**', allowEmptyArchive: false
       }
     }
 

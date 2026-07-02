@@ -19,7 +19,8 @@ sealed class JenkinsTestResultsReader
     private static readonly string[] TestResultArtifactCandidates =
     [
         "TestResults/tests.trx",
-        "TestResults/tests.junit.xml"
+        "TestResults/tests.junit.xml",
+        "TestResults/api-performance.junit.xml"
     ];
 
     private readonly HttpClient _httpClient;
@@ -49,8 +50,8 @@ sealed class JenkinsTestResultsReader
         try
         {
             var report = await TryLoadRemoteReportAsync(options.Jenkins, jobName, selectedBuildId, cancellationToken)
-                ?? await TryLoadSystemHealthArtifactReportAsync(options, jobName, selectedBuildId, cancellationToken)
-                ?? await TryLoadLocalReportAsync(options, jobName, selectedBuildId, cancellationToken);
+                ?? await TryLoadLocalReportAsync(options, jobName, selectedBuildId, cancellationToken)
+                ?? await TryLoadSystemHealthArtifactReportAsync(options, jobName, selectedBuildId, cancellationToken);
 
             if (report is null)
             {
@@ -203,10 +204,11 @@ sealed class JenkinsTestResultsReader
 
     private static JenkinsTestReportMetadata ReadLocalBuildMetadata(string buildDirectory, string requestedBuildId)
     {
+        var resolvedBuildId = Path.GetFileName(buildDirectory);
         var buildXmlPath = Path.Combine(buildDirectory, "build.xml");
         if (!File.Exists(buildXmlPath))
         {
-            return new JenkinsTestReportMetadata(Path.GetFileName(buildDirectory), string.Empty, string.Empty, null);
+            return new JenkinsTestReportMetadata(resolvedBuildId, string.Empty, string.Empty, null);
         }
 
         try
@@ -228,11 +230,11 @@ sealed class JenkinsTestResultsReader
                     && string.Equals(element.Parent.Name.LocalName, "branch", StringComparison.Ordinal))
                 ?.Value ?? string.Empty;
 
-            return new JenkinsTestReportMetadata(Path.GetFileName(buildDirectory), commit, branch, buildTime);
+            return new JenkinsTestReportMetadata(resolvedBuildId, commit, branch, buildTime);
         }
         catch (Exception ex) when (ex is System.Xml.XmlException or IOException or InvalidOperationException)
         {
-            return new JenkinsTestReportMetadata(requestedBuildId, string.Empty, string.Empty, null);
+            return new JenkinsTestReportMetadata(resolvedBuildId, string.Empty, string.Empty, null);
         }
     }
 
@@ -243,6 +245,7 @@ sealed class JenkinsTestResultsReader
 
     private static JenkinsTestCase[] ReadTestCasesFromRoot(string rootDirectory)
     {
+        var allCases = new List<JenkinsTestCase>();
         foreach (var relativePath in TestResultArtifactCandidates)
         {
             var artifactPath = Path.Combine(rootDirectory, relativePath.Replace('/', Path.DirectorySeparatorChar));
@@ -257,11 +260,11 @@ sealed class JenkinsTestResultsReader
                 : ReadJunitTestCases(artifactText);
             if (cases.Length > 0)
             {
-                return cases;
+                allCases.AddRange(cases);
             }
         }
 
-        return [];
+        return DistinctTestCases(allCases);
     }
 
     private async Task<JenkinsTestReportMetadata> GetRemoteBuildMetadataAsync(
@@ -315,6 +318,7 @@ sealed class JenkinsTestResultsReader
         string buildId,
         CancellationToken cancellationToken)
     {
+        var allCases = new List<JenkinsTestCase>();
         foreach (var relativePath in TestResultArtifactCandidates)
         {
             var artifactUrl = $"{options.BaseUrl.TrimEnd('/')}/job/{Uri.EscapeDataString(jobName)}/{Uri.EscapeDataString(buildId)}/artifact/{relativePath}";
@@ -329,11 +333,19 @@ sealed class JenkinsTestResultsReader
                 : ReadJunitTestCases(artifactText);
             if (cases.Length > 0)
             {
-                return cases;
+                allCases.AddRange(cases);
             }
         }
 
-        return [];
+        return DistinctTestCases(allCases);
+    }
+
+    private static JenkinsTestCase[] DistinctTestCases(IEnumerable<JenkinsTestCase> testCases)
+    {
+        return testCases
+            .GroupBy(testCase => $"{testCase.Suite}\u001f{testCase.ClassName}\u001f{testCase.Name}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
     }
 
     private async Task<string?> TryGetRemoteArtifactTextAsync(

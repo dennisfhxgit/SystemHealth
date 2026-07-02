@@ -228,7 +228,7 @@ sealed class SystemAlertsOptions
     public string[] DataServerDriveLetters { get; set; } = ["C:\\", "D:\\", "L:\\"];
     public string ApplicationServerMetricsSnapshotPath { get; set; } = @"C:\ProgramData\FHX\SystemHealth\test11-application-server-metrics.json";
     public int ApplicationServerMetricsSnapshotMaxAgeMinutes { get; set; } = 30;
-    public string DataServerMetricsUrl { get; set; } = string.Empty;
+    public string DataServerMetricsUrl { get; set; } = "http://remotesql.fhx.co.nz/api/v1/system/metrics";
 }
 
 sealed class CriticalHealthEventRequest

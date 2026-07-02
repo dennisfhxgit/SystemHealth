@@ -299,22 +299,32 @@ sealed class JenkinsArtifactHistoryReader
         string relativePath,
         long sizeKb)
     {
-        var isRollbackArtifact = IsRollbackArtifactPath(relativePath);
+        var artifactPath = relativePath.Replace('\\', '/');
+        var displayPath = NormalizeDisplayRelativePath(artifactPath);
+        var isRollbackArtifact = IsRollbackArtifactPath(displayPath);
         return new ArtifactHistoryItem
         {
             FileName = fileName,
             DisplayName = fileName,
-            RelativePath = relativePath,
+            RelativePath = displayPath,
             ArtifactType = isRollbackArtifact ? "Rollback Snapshot" : "Build Artifact",
             IsRollbackArtifact = isRollbackArtifact,
             SizeKb = sizeKb,
             Size = FormatArtifactSize(sizeKb),
             Created = created,
             BuildNumber = buildNumber,
-            DownloadUrl = string.IsNullOrWhiteSpace(baseUrl) ? string.Empty : BuildJenkinsArtifactUrl(baseUrl, jobName, buildNumber, relativePath),
+            DownloadUrl = string.IsNullOrWhiteSpace(baseUrl) ? string.Empty : BuildJenkinsArtifactUrl(baseUrl, jobName, buildNumber, artifactPath),
             BuildUrl = string.IsNullOrWhiteSpace(baseUrl) ? string.Empty : BuildJenkinsBuildUrl(baseUrl, jobName, buildNumber),
             LogUrl = string.IsNullOrWhiteSpace(baseUrl) ? string.Empty : BuildJenkinsBuildUrl(baseUrl, jobName, buildNumber)
         };
+    }
+
+    private static string NormalizeDisplayRelativePath(string relativePath)
+    {
+        var normalizedPath = relativePath.Replace('\\', '/');
+        return normalizedPath.StartsWith("_jenkins/_rollback/", StringComparison.OrdinalIgnoreCase)
+            ? normalizedPath["_jenkins/".Length..]
+            : normalizedPath;
     }
 
     private static bool IsRollbackArtifactPath(string relativePath)
