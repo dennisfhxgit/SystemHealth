@@ -14,6 +14,7 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
     return options;
 });
 builder.Services.AddHttpClient<JenkinsTestResultsReader>();
+builder.Services.AddHttpClient<JenkinsLogReader>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
 builder.Services.AddHttpClient<CRM.Application.SystemHealth.CodeQualitySecurityService>();
@@ -32,7 +33,7 @@ app.UseStaticFiles();
 
 var api = app.MapGroup("/api/system-health");
 api.MapGet("/code-quality-security", (StandaloneCodeQualitySecurityEndpoint endpoint, string? application, string? applicationKey, string? environment, CancellationToken cancellationToken) => endpoint.GetAsync(application, applicationKey, environment, cancellationToken));
-api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots) => snapshots.JenkinsLog());
+api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.JenkinsLogAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/test-results", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.TestResultsAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
 api.MapGet("/system-alerts", () => Results.Json(SystemHealthSnapshots.SystemAlerts()));
@@ -75,28 +76,18 @@ sealed class SystemHealthSnapshots
     private const string EnvironmentName = "Development";
     private readonly SystemHealthOptions _options;
     private readonly JenkinsTestResultsReader _testResultsReader;
+    private readonly JenkinsLogReader _jenkinsLogReader;
 
-    public SystemHealthSnapshots(SystemHealthOptions options, JenkinsTestResultsReader testResultsReader)
+    public SystemHealthSnapshots(SystemHealthOptions options, JenkinsTestResultsReader testResultsReader, JenkinsLogReader jenkinsLogReader)
     {
         _options = options;
         _testResultsReader = testResultsReader;
+        _jenkinsLogReader = jenkinsLogReader;
     }
 
-    public IResult JenkinsLog()
+    public async Task<IResult> JenkinsLogAsync(string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken)
     {
-        return Results.Json(new
-        {
-            status = "Warning",
-            statusDetail = "Jenkins log access is not configured in source; configure Test12 runtime Jenkins credentials to enable live logs.",
-            selectedApplicationKey = ApplicationKey,
-            selectedEnvironment = EnvironmentName,
-            applications = Applications(),
-            environments = Environments(),
-            jobName = _options.Jenkins.JobName,
-            buildId = "Last Build",
-            buildStatus = "Unavailable",
-            logText = ""
-        });
+        return Results.Json(await _jenkinsLogReader.GetAsync(_options, applicationKey, environment, buildId, cancellationToken));
     }
 
     public async Task<IResult> TestResultsAsync(string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken)
@@ -246,6 +237,7 @@ sealed class JenkinsOptions
     public string JobName { get; set; } = "SystemHealth";
     public string UserName { get; set; } = string.Empty;
     public string ApiToken { get; set; } = string.Empty;
+    public int MaxLogCharacters { get; set; } = 60000;
 }
 
 sealed class SonarQubeOptions
