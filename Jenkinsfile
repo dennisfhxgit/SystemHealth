@@ -21,6 +21,10 @@ pipeline {
     TEST12_PATH = 'W:/vhosts/fhx.co.nz/test12.fhx.co.nz'
     TEST12_APPPOOL = 'test12.fhx.co.nz(domain)(4.0)(pool)'
     TEST12_URL = 'https://test12.fhx.co.nz'
+    SONAR_PROJECT_KEY = 'SystemHealth'
+    SONAR_HOST_URL = 'https://sonarqube.fhx.co.nz'
+    SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**'
+    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**'
   }
 
   stages {
@@ -114,16 +118,39 @@ pipeline {
 
     stage('Backend Build And Tests') {
       steps {
-        bat 'dotnet restore "%SOLUTION_PATH%"'
-        bat 'dotnet build "%SOLUTION_PATH%" -c Release --no-restore'
-        bat 'dotnet test "%SOLUTION_PATH%" -c Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory "%WORKSPACE%\\TestResults"'
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+          bat '''
+          dotnet sonarscanner begin ^
+            /k:"%SONAR_PROJECT_KEY%" ^
+            /n:"SystemHealth" ^
+            /d:sonar.host.url="%SONAR_HOST_URL%" ^
+            /d:sonar.token="%SONAR_TOKEN%" ^
+            /d:sonar.exclusions="%SONAR_EXCLUSIONS%" ^
+            /d:sonar.coverage.exclusions="%SONAR_COVERAGE_EXCLUSIONS%" ^
+            /d:sonar.qualitygate.wait=true ^
+            /d:sonar.projectBaseDir="%CD%"
+          if errorlevel 1 exit /b %errorlevel%
+
+          dotnet restore "%SOLUTION_PATH%"
+          if errorlevel 1 exit /b %errorlevel%
+
+          dotnet build "%SOLUTION_PATH%" -c Release --no-restore
+          if errorlevel 1 exit /b %errorlevel%
+
+          dotnet test "%SOLUTION_PATH%" -c Release --no-build --logger "trx;LogFileName=tests.trx" --results-directory "%WORKSPACE%\\TestResults"
+          if errorlevel 1 exit /b %errorlevel%
+
+          dotnet sonarscanner end /d:sonar.token="%SONAR_TOKEN%"
+          if errorlevel 1 exit /b %errorlevel%
+          '''
+        }
       }
     }
 
     stage('Code Quality Artifact Publish') {
       steps {
         bat '''
-        "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File "%WORKSPACE%\\scripts\\ci\\Write-SystemHealthCodeQualityArtifacts.ps1" -Workspace "%WORKSPACE%" -OutputRoot "C:\\ProgramData\\Jenkins\\.jenkins\\fhx-system-health\\SystemHealth\\latest" -BuildNumber "%BUILD_NUMBER%" -BuildUrl "%BUILD_URL%" -Branch "main" -Commit "%GIT_COMMIT%"
+        "C:\\Program Files\\PowerShell\\7\\pwsh.exe" -NoProfile -ExecutionPolicy Bypass -File "%WORKSPACE%\\scripts\\ci\\Write-SystemHealthCodeQualityArtifacts.ps1" -Workspace "%WORKSPACE%" -OutputRoot "C:\\ProgramData\\Jenkins\\.jenkins\\fhx-system-health\\SystemHealth\\latest" -BuildNumber "%BUILD_NUMBER%" -BuildUrl "%BUILD_URL%" -Branch "master" -Commit "%GIT_COMMIT%"
         if errorlevel 1 exit /b %errorlevel%
         '''
         powershell '''
@@ -147,19 +174,28 @@ pipeline {
         New-Item -ItemType Directory -Force -Path $testResultsTarget | Out-Null
         Copy-Item -Path (Join-Path $testResultsSource '*') -Destination $testResultsTarget -Recurse -Force
 
-        $aiCodeAnalysisArtifact = Join-Path $env:WORKSPACE '_jenkins/ai-code-analysis.json'
-        & (Join-Path $env:WORKSPACE 'scripts/ci/Write-AiCodeAnalysisArtifact.ps1') `
-          -Workspace $env:WORKSPACE `
-          -ArtifactPath $aiCodeAnalysisArtifact `
-          -BuildNumber $env:BUILD_NUMBER `
-          -Branch $env:BRANCH_NAME_GOVERNED `
-          -Commit $env:GIT_COMMIT
-        if (-not (Test-Path -LiteralPath $aiCodeAnalysisArtifact)) {
-          throw "AI Code Analysis artifact was not created: $aiCodeAnalysisArtifact"
-        }
-
-        Copy-Item -LiteralPath $aiCodeAnalysisArtifact -Destination (Join-Path (Split-Path -Parent $manifest) 'ai-code-analysis.json') -Force
         '''
+        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+          powershell '''
+          $ErrorActionPreference = 'Stop'
+          $manifest = 'C:/ProgramData/Jenkins/.jenkins/fhx-system-health/SystemHealth/latest/manifest.json'
+          $aiCodeAnalysisArtifact = Join-Path $env:WORKSPACE '_jenkins/ai-code-analysis.json'
+          & (Join-Path $env:WORKSPACE 'scripts/ci/Write-AiCodeAnalysisArtifact.ps1') `
+            -Workspace $env:WORKSPACE `
+            -ArtifactPath $aiCodeAnalysisArtifact `
+            -SonarHostUrl $env:SONAR_HOST_URL `
+            -SonarToken $env:SONAR_TOKEN `
+            -SonarProjectKey $env:SONAR_PROJECT_KEY `
+            -BuildNumber $env:BUILD_NUMBER `
+            -Branch $env:BRANCH_NAME_GOVERNED `
+            -Commit $env:GIT_COMMIT
+          if (-not (Test-Path -LiteralPath $aiCodeAnalysisArtifact)) {
+            throw "AI Code Analysis artifact was not created: $aiCodeAnalysisArtifact"
+          }
+
+          Copy-Item -LiteralPath $aiCodeAnalysisArtifact -Destination (Join-Path (Split-Path -Parent $manifest) 'ai-code-analysis.json') -Force
+          '''
+        }
         archiveArtifacts artifacts: '_jenkins/build-checkout-commit.txt,_jenkins/ai-code-analysis.json,TestResults/**', allowEmptyArchive: false, fingerprint: true
       }
     }
@@ -294,6 +330,31 @@ pipeline {
         }
 
         try {
+          $rollbackRoot = Join-Path $env:WORKSPACE "_jenkins/_rollback/$env:BUILD_NUMBER/website-current"
+          if (Test-Path -LiteralPath $rollbackRoot) {
+            Remove-Item -LiteralPath $rollbackRoot -Recurse -Force
+          }
+
+          New-Item -ItemType Directory -Force -Path $rollbackRoot | Out-Null
+          $rollbackArgs = @(
+            $target,
+            $rollbackRoot,
+            '/E',
+            '/R:3',
+            '/W:5',
+            '/NFL',
+            '/NDL',
+            '/NJH',
+            '/NJS',
+            '/NP',
+            '/XF',
+            'appsettings.json',
+            'appsettings.Development.json',
+            'appsettings.Production.json',
+            'appsettings.*.json'
+          )
+          Invoke-RobocopyChecked -Label 'SystemHealth Test12 rollback snapshot' -Arguments $rollbackArgs
+
           '<html><body>Deployment in progress.</body></html>' | Set-Content -LiteralPath $appOffline -Encoding UTF8
 
           Invoke-NativeChecked -Label "Stop app pool $appPool" -FilePath $appcmd -Arguments @('stop', 'apppool', "/apppool.name:$appPool") -AcceptedExitCodes 0
@@ -338,6 +399,7 @@ pipeline {
           Invoke-NativeChecked -Label "Start app pool $appPool" -FilePath $appcmd -Arguments @('start', 'apppool', "/apppool.name:$appPool") -AcceptedExitCodes 0
         }
         '''
+        archiveArtifacts artifacts: '_jenkins/_rollback/**', allowEmptyArchive: false, fingerprint: true
       }
     }
 
@@ -378,7 +440,14 @@ pipeline {
 
           Write-Host "$uri returned HTTP 200"
         }
+
+        & (Join-Path $env:WORKSPACE 'scripts/ci/Write-SystemHealthApiPerformanceResults.ps1') `
+          -BaseUrl $env:TEST12_URL `
+          -OutputPath (Join-Path $env:WORKSPACE 'TestResults/api-performance.junit.xml') `
+          -SamplesPerEndpoint 3
         '''
+        junit allowEmptyResults: false, testResults: 'TestResults/api-performance.junit.xml'
+        archiveArtifacts artifacts: 'TestResults/api-performance.junit.xml', allowEmptyArchive: false, fingerprint: true
       }
     }
   }
