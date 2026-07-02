@@ -23,8 +23,8 @@ pipeline {
     TEST12_URL = 'https://test12.fhx.co.nz'
     SONAR_PROJECT_KEY = 'SystemHealth'
     SONAR_HOST_URL = 'https://sonarqube.fhx.co.nz'
-    SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**'
-    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,SystemHealth.Api/Jenkins*Reader.cs,SystemHealth.Api/StandaloneSystemAlertsReader.cs,SystemHealth.Api/StandaloneCodeQualitySecurityEndpoint.cs,SystemHealth.Api/Program.cs'
+    SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,coverage/**'
+    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,coverage/**,SystemHealth.Api/Jenkins*Reader.cs,SystemHealth.Api/StandaloneSystemAlertsReader.cs,SystemHealth.Api/StandaloneCodeQualitySecurityEndpoint.cs,SystemHealth.Api/Program.cs'
     SONAR_JS_LCOV_REPORT_PATHS = 'coverage/lcov.info'
     SONAR_TEST_INCLUSIONS = 'src/**/*.test.ts'
   }
