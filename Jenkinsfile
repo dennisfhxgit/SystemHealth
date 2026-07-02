@@ -127,7 +127,7 @@ pipeline {
         '''
         powershell '''
         $ErrorActionPreference = 'Stop'
-        $manifest = 'C:\ProgramData\Jenkins\.jenkins\fhx-system-health\SystemHealth\latest\manifest.json'
+        $manifest = 'C:/ProgramData/Jenkins/.jenkins/fhx-system-health/SystemHealth/latest/manifest.json'
         if (-not (Test-Path -LiteralPath $manifest)) {
           throw "Code Quality manifest was not created: $manifest"
         }
