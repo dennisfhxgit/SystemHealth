@@ -315,9 +315,9 @@ pipeline {
             }
 
             $deletePath = if ($_.FullName.StartsWith('\\', [StringComparison]::Ordinal)) {
-              '\\?\UNC\' + $_.FullName.TrimStart('\')
+              ([string][char]92 + [string][char]92 + '?' + [string][char]92 + 'UNC' + [string][char]92) + $_.FullName.TrimStart('\')
             } else {
-              '\\?\' + $_.FullName
+              ([string][char]92 + [string][char]92 + '?' + [string][char]92) + $_.FullName
             }
 
             [System.IO.File]::Delete($deletePath)
