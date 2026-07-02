@@ -11,6 +11,8 @@ internal sealed class StandaloneEmailWorkersReader
     private const string NeutralStatus = "Neutral";
     private const string RunningStatus = "Running";
     private const string WarningStatus = "Warning";
+    private const string PendingMetricLabel = "Pending";
+    private const string ProcessingMetricLabel = "Processing";
     private const string SystemQueueWorkerKey = "system-email-queue";
     private const string TriggerQueueWorkerKey = "email-trigger-queue";
     private const string MailchimpWorkerKey = "mailchimp-subscription-sync";
@@ -120,8 +122,8 @@ internal sealed class StandaloneEmailWorkersReader
             RunState = runState,
             Metrics =
             [
-                Metric("Pending", counts.SystemPending, NeutralStatus),
-                Metric("Processing", counts.SystemProcessing, NeutralStatus),
+                Metric(PendingMetricLabel, counts.SystemPending, NeutralStatus),
+                Metric(ProcessingMetricLabel, counts.SystemProcessing, NeutralStatus),
                 Metric("Retry scheduled", counts.SystemRetryScheduled, NeutralStatus),
                 Metric("Sent today", counts.SystemSentToday, NeutralStatus),
                 Metric("Blocked", counts.SystemBlocked, counts.SystemBlocked > 0 ? CriticalStatus : NeutralStatus),
@@ -162,8 +164,8 @@ internal sealed class StandaloneEmailWorkersReader
             RunState = runState,
             Metrics =
             [
-                Metric("Pending", counts.TriggerPending, NeutralStatus),
-                Metric("Processing", counts.TriggerProcessing, NeutralStatus),
+                Metric(PendingMetricLabel, counts.TriggerPending, NeutralStatus),
+                Metric(ProcessingMetricLabel, counts.TriggerProcessing, NeutralStatus),
                 Metric("Completed", counts.TriggerCompleted, NeutralStatus),
                 Metric("Failed retry", counts.TriggerFailed, counts.TriggerFailed > 0 ? CriticalStatus : NeutralStatus),
                 Metric("Manual review", counts.TriggerManualReview, counts.TriggerManualReview > 0 ? CriticalStatus : NeutralStatus),
@@ -331,8 +333,8 @@ WHERE EmailWorkerManaged = 1;";
             return;
         }
 
-        counts.SystemPending = ReadInt(reader, "Pending");
-        counts.SystemProcessing = ReadInt(reader, "Processing");
+        counts.SystemPending = ReadInt(reader, PendingMetricLabel);
+        counts.SystemProcessing = ReadInt(reader, ProcessingMetricLabel);
         counts.SystemRetryScheduled = ReadInt(reader, "RetryScheduled");
         counts.SystemSentToday = ReadInt(reader, "SentToday");
         counts.SystemBlocked = ReadInt(reader, "Blocked");
@@ -362,8 +364,8 @@ FROM dbo.EmailTriggerQueue;";
             return;
         }
 
-        counts.TriggerPending = ReadInt(reader, "Pending");
-        counts.TriggerProcessing = ReadInt(reader, "Processing");
+        counts.TriggerPending = ReadInt(reader, PendingMetricLabel);
+        counts.TriggerProcessing = ReadInt(reader, ProcessingMetricLabel);
         counts.TriggerCompleted = ReadInt(reader, "Completed");
         counts.TriggerFailed = ReadInt(reader, "Failed");
         counts.TriggerManualReview = ReadInt(reader, "ManualReview");
