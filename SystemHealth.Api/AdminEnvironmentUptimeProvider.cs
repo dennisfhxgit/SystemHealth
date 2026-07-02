@@ -85,7 +85,7 @@ internal sealed partial class IisAdminEnvironmentUptimeProvider : IAdminEnvironm
             "SELECT AppPoolName, ProcessId FROM WorkerProcess");
         using var results = searcher.Get();
         var workerProcesses = new List<IisWorkerProcessInfo>();
-        foreach (ManagementObject workerProcess in results)
+        foreach (ManagementBaseObject workerProcess in results)
         {
             using (workerProcess)
             {
@@ -100,15 +100,8 @@ internal sealed partial class IisAdminEnvironmentUptimeProvider : IAdminEnvironm
 
     private static IisWorkerProcessInfo? FindWorkerProcess(IEnumerable<IisWorkerProcessInfo> workerProcesses, string appPoolName)
     {
-        foreach (var workerProcess in workerProcesses)
-        {
-            if (string.Equals(workerProcess.AppPoolName.Trim(), appPoolName, StringComparison.OrdinalIgnoreCase))
-            {
-                return workerProcess;
-            }
-        }
-
-        return null;
+        return workerProcesses.FirstOrDefault(workerProcess =>
+            string.Equals(workerProcess.AppPoolName.Trim(), appPoolName, StringComparison.OrdinalIgnoreCase));
     }
 
     internal static bool IsWindows() => RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
