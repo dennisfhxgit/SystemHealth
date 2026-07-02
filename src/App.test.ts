@@ -82,6 +82,27 @@ function responseFor(url: string) {
     })
   }
 
+  if (url.startsWith('/api/system-health/admin-environment')) {
+    return jsonResponse({
+      generatedAtUtc: '2026-07-02T10:00:00Z',
+      status: 'Healthy',
+      statusDetail: 'Configured environment checks are healthy.',
+      environments: [
+        {
+          name: 'Test12',
+          url: 'https://test12.fhx.co.nz/health',
+          status: 'OK',
+          latency: '42 ms',
+          uptime: '3 days 4 hr',
+          mode: 'Live',
+          lastCheckedUtc: '2026-07-02T10:00:00Z',
+          statusCode: 200,
+          detail: 'Health check returned success.'
+        }
+      ]
+    })
+  }
+
   return jsonResponse({
     status: 'Warning',
     statusDetail: 'Runtime provider not configured.',
@@ -134,5 +155,23 @@ describe('standalone SystemHealth app', () => {
     expect(wrapper.text()).toContain('Build Artifacts: 1')
     expect(wrapper.text()).toContain('_rollback/25/website-current/index.html')
     expect(wrapper.text()).toContain('TestResults/tests.junit.xml')
+  })
+
+  it('renders live Admin & Environment target checks', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const adminButton = wrapper.findAll('button').find(button => button.text() === 'Admin & Environment')
+    expect(adminButton).toBeTruthy()
+    await adminButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Configured environment checks are healthy.')
+    expect(wrapper.text()).toContain('Test12')
+    expect(wrapper.text()).toContain('https://test12.fhx.co.nz/health')
+    expect(wrapper.text()).toContain('42 ms')
+    expect(wrapper.text()).toContain('3 days 4 hr')
+    expect(wrapper.text()).toContain('Live')
+    expect(wrapper.text()).toContain('Health check returned success.')
   })
 })
