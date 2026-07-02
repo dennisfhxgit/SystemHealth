@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 
 sealed partial class StandaloneSystemAlertsReader
 {
@@ -12,15 +14,18 @@ sealed partial class StandaloneSystemAlertsReader
     private const string HighSeverity = "High";
     private const string MediumSeverity = "Medium";
     private const string NotReported = "Not reported";
+    private const string DataServerMetricsEndpoint = "Data Server metrics endpoint";
 
+    private readonly HttpClient _httpClient;
     private readonly SystemHealthOptions _options;
 
-    public StandaloneSystemAlertsReader(SystemHealthOptions options)
+    public StandaloneSystemAlertsReader(HttpClient httpClient, SystemHealthOptions options)
     {
+        _httpClient = httpClient;
         _options = options;
     }
 
-    public SystemAlertsSnapshot Get()
+    public async Task<SystemAlertsSnapshot> GetAsync(CancellationToken cancellationToken)
     {
         var generatedAtUtc = DateTime.UtcNow;
         var options = Normalize(_options.SystemAlerts);
@@ -28,8 +33,8 @@ sealed partial class StandaloneSystemAlertsReader
         var checks = new List<SystemHealthCheck>();
         var dataServerChecks = new List<SystemHealthCheck>();
 
-        var drives = LoadDriveMetrics(options, ApplicationServerSource, alerts, generatedAtUtc);
-        var dataServerDrives = BuildMissingDataServerDrives(options, dataServerChecks, alerts, generatedAtUtc);
+        var drives = LoadDriveMetrics(options, options.ApplicationServerDriveLetters, ApplicationServerSource, alerts, generatedAtUtc);
+        var dataServerMetrics = await LoadDataServerDriveMetricsAsync(options, dataServerChecks, alerts, generatedAtUtc, cancellationToken);
         var processCpu = GetCurrentProcessCpuPercent();
         var memoryUsage = GetMemoryUsagePercent();
 
@@ -85,11 +90,11 @@ sealed partial class StandaloneSystemAlertsReader
                 Failures = failures,
                 ProcessCpuPercent = processCpu,
                 MemoryUsagePercent = Math.Max(0, memoryUsage),
-                DataServerCpuPercent = 0,
-                DataServerMemoryUsagePercent = 0
+                DataServerCpuPercent = dataServerMetrics.CpuPercent,
+                DataServerMemoryUsagePercent = dataServerMetrics.MemoryUsagePercent
             },
             ApplicationDrives = drives,
-            DataServerDrives = dataServerDrives,
+            DataServerDrives = dataServerMetrics.Drives,
             Checks = checks,
             DataServerChecks = dataServerChecks,
             Alerts = alerts.OrderByDescending(alert => alert.TimestampUtc).ThenBy(alert => alert.Source, StringComparer.OrdinalIgnoreCase).ToArray()
@@ -98,15 +103,18 @@ sealed partial class StandaloneSystemAlertsReader
 
     private static SystemDriveMetric[] LoadDriveMetrics(
         SystemAlertsOptions options,
+        IReadOnlyList<string> configuredDriveLetters,
         string source,
         List<SystemAlert> alerts,
         DateTime timestampUtc)
     {
+        var snapshotDrives = LoadApplicationServerDriveMetricsSnapshot(options, timestampUtc);
         var reportedDrives = DriveInfo.GetDrives()
             .ToDictionary(drive => NormalizeDriveName(drive.Name), StringComparer.OrdinalIgnoreCase);
 
-        var driveNames = options.ApplicationServerDriveLetters
+        var driveNames = configuredDriveLetters
             .Select(NormalizeDriveName)
+            .Concat(snapshotDrives.Keys)
             .Concat(reportedDrives.Keys)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -114,7 +122,7 @@ sealed partial class StandaloneSystemAlertsReader
             .ToArray();
 
         var drives = driveNames
-            .Select(name => CreateApplicationDriveMetric(name, options, reportedDrives))
+            .Select(name => CreateApplicationDriveMetric(name, options, snapshotDrives, reportedDrives))
             .ToArray();
 
         AddDriveAlerts(drives, source, options, alerts, timestampUtc);
@@ -124,15 +132,74 @@ sealed partial class StandaloneSystemAlertsReader
     private static SystemDriveMetric CreateApplicationDriveMetric(
         string name,
         SystemAlertsOptions options,
+        IReadOnlyDictionary<string, SystemDriveMetric> snapshotDrives,
         IReadOnlyDictionary<string, DriveInfo> reportedDrives)
     {
+        if (snapshotDrives.TryGetValue(name, out var snapshotMetric))
+        {
+            return snapshotMetric;
+        }
+
         if (TryCreateReportedDriveMetric(name, reportedDrives, options, out var metric)
-            || TryCreateDriveMetric(name, options, out metric))
+            || TryCreateDriveMetric(name, options, out metric)
+            || TryCreateWin32DriveMetric(name, options, out metric))
         {
             return metric;
         }
 
         return MissingDriveMetric(name);
+    }
+
+    private static IReadOnlyDictionary<string, SystemDriveMetric> LoadApplicationServerDriveMetricsSnapshot(
+        SystemAlertsOptions options,
+        DateTime timestampUtc)
+    {
+        var metrics = new Dictionary<string, SystemDriveMetric>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(options.ApplicationServerMetricsSnapshotPath))
+        {
+            return metrics;
+        }
+
+        try
+        {
+            var file = new FileInfo(options.ApplicationServerMetricsSnapshotPath);
+            if (!file.Exists)
+            {
+                return metrics;
+            }
+
+            using var stream = file.OpenRead();
+            using var document = JsonDocument.Parse(stream);
+            var root = document.RootElement;
+            var generatedAtUtc = ReadDateTimeUtc(root, "generatedAtUtc") ?? file.LastWriteTimeUtc;
+            var maxAge = TimeSpan.FromMinutes(Math.Clamp(options.ApplicationServerMetricsSnapshotMaxAgeMinutes, 1, 1440));
+            if (timestampUtc - generatedAtUtc > maxAge)
+            {
+                return metrics;
+            }
+
+            var drivesElement = TryGetProperty(root, "drives", out var rootDrives)
+                ? rootDrives
+                : default;
+            if (drivesElement.ValueKind != JsonValueKind.Array)
+            {
+                return metrics;
+            }
+
+            foreach (var driveElement in drivesElement.EnumerateArray())
+            {
+                if (TryReadDriveMetric(driveElement, options, out var metric))
+                {
+                    metrics[metric.Name] = metric;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or ArgumentException)
+        {
+            return metrics;
+        }
+
+        return metrics;
     }
 
     private static bool TryCreateReportedDriveMetric(
@@ -182,6 +249,26 @@ sealed partial class StandaloneSystemAlertsReader
         return true;
     }
 
+    private static bool TryCreateWin32DriveMetric(string driveName, SystemAlertsOptions options, out SystemDriveMetric metric)
+    {
+        metric = new SystemDriveMetric();
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        var normalizedName = NormalizeDriveName(driveName);
+        if (string.IsNullOrWhiteSpace(normalizedName)
+            || !GetDiskFreeSpaceEx(normalizedName, out _, out var totalBytes, out var totalFreeBytes)
+            || totalBytes == 0)
+        {
+            return false;
+        }
+
+        metric = CreateDriveMetric(normalizedName, (long)totalBytes, (long)totalFreeBytes, options);
+        return true;
+    }
+
     private static SystemDriveMetric CreateDriveMetric(string name, long totalBytes, long freeBytes, SystemAlertsOptions options)
     {
         var usedBytes = Math.Max(0, totalBytes - freeBytes);
@@ -222,8 +309,6 @@ sealed partial class StandaloneSystemAlertsReader
         List<SystemAlert> alerts,
         DateTime timestampUtc)
     {
-        checks.Add(Check("Data Server metrics endpoint", DataServerSource, WarningStatus, "Data Server metrics endpoint is not configured."));
-
         var drives = options.DataServerDriveLetters
             .Select(NormalizeDriveName)
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -233,6 +318,182 @@ sealed partial class StandaloneSystemAlertsReader
 
         AddDriveAlerts(drives, DataServerSource, options, alerts, timestampUtc);
         return drives;
+    }
+
+    private async Task<DataServerMetricsResult> LoadDataServerDriveMetricsAsync(
+        SystemAlertsOptions options,
+        List<SystemHealthCheck> checks,
+        List<SystemAlert> alerts,
+        DateTime timestampUtc,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(options.DataServerMetricsUrl))
+        {
+            checks.Add(Check(DataServerMetricsEndpoint, DataServerSource, HealthyStatus, "Using local collector-backed server drive metrics because no separate Data Server metrics endpoint is configured."));
+            return new DataServerMetricsResult
+            {
+                Drives = LoadDriveMetrics(options, options.DataServerDriveLetters, DataServerSource, alerts, timestampUtc)
+            };
+        }
+
+        try
+        {
+            using var response = await _httpClient.GetAsync(options.DataServerMetricsUrl, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                checks.Add(Check(DataServerMetricsEndpoint, DataServerSource, WarningStatus, $"Data Server metrics endpoint returned HTTP {(int)response.StatusCode}."));
+                alerts.Add(Alert("data-server-metrics-http", DataServerSource, HighSeverity, $"Data Server metrics endpoint returned HTTP {(int)response.StatusCode}.", timestampUtc));
+                return new DataServerMetricsResult { Drives = BuildMissingDataServerDrives(options, checks, alerts, timestampUtc) };
+            }
+
+            checks.Add(Check(DataServerMetricsEndpoint, DataServerSource, HealthyStatus, "Data Server metrics endpoint returned live metrics."));
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+            var root = document.RootElement;
+            var summaryElement = ResolveNestedElement(root, "summary");
+            var cpuPercent = ReadInt(summaryElement, "cpu", ReadInt(summaryElement, "cpuPercent", 0));
+            var memoryPercent = ReadInt(summaryElement, "ram", ReadInt(summaryElement, "memoryUsagePercent", 0));
+            AddThresholdCheck(checks, alerts, timestampUtc, "Data server CPU", DataServerSource, cpuPercent, options.ProcessCpuWarningPercent, options.ProcessCpuCriticalPercent, "%", "Data Server CPU usage.");
+            AddThresholdCheck(checks, alerts, timestampUtc, "Data server memory", DataServerSource, memoryPercent, options.MemoryWarningPercent, options.MemoryCriticalPercent, "%", "Data Server memory usage.");
+
+            var reportedDrives = ReadReportedDataServerDrives(ResolveNestedElement(root, "drives"), options);
+            var drives = BuildDataServerDrives(options, reportedDrives);
+            AddDriveAlerts(drives, DataServerSource, options, alerts, timestampUtc);
+            ImportRemoteAlerts(root, alerts, timestampUtc);
+
+            return new DataServerMetricsResult
+            {
+                Drives = drives,
+                CpuPercent = cpuPercent,
+                MemoryUsagePercent = memoryPercent
+            };
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or NotSupportedException or IOException)
+        {
+            checks.Add(Check(DataServerMetricsEndpoint, DataServerSource, WarningStatus, "Data Server metrics endpoint could not be reached or parsed."));
+            alerts.Add(Alert("data-server-metrics-unavailable", DataServerSource, HighSeverity, "Data Server metrics endpoint could not be reached or parsed.", timestampUtc));
+            return new DataServerMetricsResult { Drives = BuildMissingDataServerDrives(options, checks, alerts, timestampUtc) };
+        }
+    }
+
+    private static SystemDriveMetric[] BuildDataServerDrives(
+        SystemAlertsOptions options,
+        IReadOnlyDictionary<string, SystemDriveMetric> reportedDrives)
+    {
+        var driveNames = options.DataServerDriveLetters.Length > 0
+            ? options.DataServerDriveLetters.Select(NormalizeDriveName).ToArray()
+            : reportedDrives.Keys.OrderBy(name => name, StringComparer.OrdinalIgnoreCase).ToArray();
+
+        return driveNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(name => reportedDrives.TryGetValue(name, out var drive) ? drive : MissingDriveMetric(name))
+            .ToArray();
+    }
+
+    private static Dictionary<string, SystemDriveMetric> ReadReportedDataServerDrives(
+        JsonElement drivesElement,
+        SystemAlertsOptions options)
+    {
+        var reportedDrives = new Dictionary<string, SystemDriveMetric>(StringComparer.OrdinalIgnoreCase);
+        if (drivesElement.ValueKind != JsonValueKind.Array)
+        {
+            return reportedDrives;
+        }
+
+        foreach (var driveElement in drivesElement.EnumerateArray())
+        {
+            if (TryReadDriveMetric(driveElement, options, out var metric))
+            {
+                reportedDrives[metric.Name] = metric;
+            }
+        }
+
+        return reportedDrives;
+    }
+
+    private static bool TryReadDriveMetric(JsonElement driveElement, SystemAlertsOptions options, out SystemDriveMetric metric)
+    {
+        metric = new SystemDriveMetric();
+        var name = NormalizeDriveName(ReadString(driveElement, "name"));
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        var total = ReadString(driveElement, "total");
+        var free = ReadString(driveElement, "free");
+        var used = ResolveUsedText(ReadString(driveElement, "used"), total, free);
+        var usage = ReadInt(driveElement, "usage", ReadInt(driveElement, "usagePercent", 0));
+
+        metric = new SystemDriveMetric
+        {
+            Name = name,
+            Total = string.IsNullOrWhiteSpace(total) ? NotReported : total,
+            Used = string.IsNullOrWhiteSpace(used) ? NotReported : used,
+            Free = string.IsNullOrWhiteSpace(free) ? NotReported : free,
+            UsagePercent = usage,
+            Status = ResolveDriveStatus(usage, options)
+        };
+        return true;
+    }
+
+    private static void ImportRemoteAlerts(JsonElement root, List<SystemAlert> alerts, DateTime timestampUtc)
+    {
+        var alertsElement = ResolveRemoteAlertsElement(root);
+        if (alertsElement.ValueKind != JsonValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var alertElement in alertsElement.EnumerateArray())
+        {
+            var message = ReadString(alertElement, "message");
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                continue;
+            }
+
+            var severityText = ReadString(alertElement, "severity");
+            var severity = string.Equals(severityText, HighSeverity, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(severityText, CriticalStatus, StringComparison.OrdinalIgnoreCase)
+                    ? HighSeverity
+                    : MediumSeverity;
+            alerts.Add(Alert($"data-server-{ToAlertId(message)}", DataServerSource, severity, message, timestampUtc));
+        }
+    }
+
+    private static JsonElement ResolveNestedElement(JsonElement root, string propertyName)
+    {
+        if (TryGetProperty(root, propertyName, out var directElement))
+        {
+            return directElement;
+        }
+
+        if (TryGetProperty(root, "serverMetrics", out var serverMetrics)
+            && TryGetProperty(serverMetrics, propertyName, out var nestedElement))
+        {
+            return nestedElement;
+        }
+
+        return default;
+    }
+
+    private static JsonElement ResolveRemoteAlertsElement(JsonElement root)
+    {
+        if (TryGetProperty(root, "alerts", out var alerts))
+        {
+            return alerts;
+        }
+
+        if (TryGetProperty(root, "serverMetrics", out var serverMetrics)
+            && TryGetProperty(serverMetrics, "alerts", out var serverAlerts))
+        {
+            return serverAlerts;
+        }
+
+        return default;
     }
 
     private static void AddDriveAlerts(
@@ -394,7 +655,10 @@ sealed partial class StandaloneSystemAlertsReader
                 ? AppContext.BaseDirectory
                 : options.DeploymentRootPath,
             ApplicationServerDriveLetters = NormalizeDriveLetters(options.ApplicationServerDriveLetters),
-            DataServerDriveLetters = NormalizeDriveLetters(options.DataServerDriveLetters)
+            DataServerDriveLetters = NormalizeDriveLetters(options.DataServerDriveLetters),
+            ApplicationServerMetricsSnapshotPath = options.ApplicationServerMetricsSnapshotPath,
+            ApplicationServerMetricsSnapshotMaxAgeMinutes = Math.Clamp(options.ApplicationServerMetricsSnapshotMaxAgeMinutes, 1, 1440),
+            DataServerMetricsUrl = options.DataServerMetricsUrl
         };
     }
 
@@ -433,6 +697,140 @@ sealed partial class StandaloneSystemAlertsReader
         return name;
     }
 
+    private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.ValueKind != JsonValueKind.Object)
+        {
+            value = default;
+            return false;
+        }
+
+        var matchingProperty = element
+            .EnumerateObject()
+            .FirstOrDefault(property => string.Equals(property.Name, name, StringComparison.OrdinalIgnoreCase));
+
+        if (matchingProperty.Value.ValueKind == JsonValueKind.Undefined)
+        {
+            value = default;
+            return false;
+        }
+
+        value = matchingProperty.Value;
+        return true;
+    }
+
+    private static string ReadString(JsonElement element, string name)
+    {
+        if (!TryGetProperty(element, name, out var value))
+        {
+            return string.Empty;
+        }
+
+        return value.ValueKind switch
+        {
+            JsonValueKind.String => value.GetString() ?? string.Empty,
+            JsonValueKind.Number => value.GetRawText(),
+            JsonValueKind.True => "true",
+            JsonValueKind.False => "false",
+            _ => string.Empty
+        };
+    }
+
+    private static int ReadInt(JsonElement element, string name, int fallback)
+    {
+        if (!TryGetProperty(element, name, out var value))
+        {
+            return fallback;
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt32(out var number))
+        {
+            return Math.Clamp(number, 0, 100);
+        }
+
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var doubleValue))
+        {
+            return Math.Clamp((int)Math.Round(doubleValue), 0, 100);
+        }
+
+        if (value.ValueKind == JsonValueKind.String
+            && int.TryParse(value.GetString()?.Trim().TrimEnd('%'), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return Math.Clamp(parsed, 0, 100);
+        }
+
+        return fallback;
+    }
+
+    private static DateTime? ReadDateTimeUtc(JsonElement element, string name)
+    {
+        if (!TryGetProperty(element, name, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        return DateTime.TryParse(
+            value.GetString(),
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+            out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private static string ResolveUsedText(string used, string total, string free)
+    {
+        return string.IsNullOrWhiteSpace(used) ? FormatUsedFromText(total, free) : used;
+    }
+
+    private static string ResolveDriveStatus(int usage, SystemAlertsOptions options)
+    {
+        return usage >= options.DiskCriticalPercent || usage >= options.DiskWarningPercent
+            ? WarningStatus
+            : HealthyStatus;
+    }
+
+    private static string FormatUsedFromText(string total, string free)
+    {
+        if (!TryParseGigabytes(total, out var totalGb) || !TryParseGigabytes(free, out var freeGb))
+        {
+            return NotReported;
+        }
+
+        return $"{Math.Round(Math.Max(0, totalGb - freeGb), 2)} GB";
+    }
+
+    private static bool TryParseGigabytes(string value, out double gigabytes)
+    {
+        gigabytes = 0;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        var trimmed = value.Trim();
+        var numberText = new string(trimmed.TakeWhile(character => char.IsDigit(character) || character is '.' or ',').ToArray()).Replace(",", string.Empty, StringComparison.Ordinal);
+        if (!double.TryParse(numberText, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+        {
+            return false;
+        }
+
+        if (trimmed.Contains("TB", StringComparison.OrdinalIgnoreCase))
+        {
+            gigabytes = number * 1024;
+            return true;
+        }
+
+        if (trimmed.Contains("MB", StringComparison.OrdinalIgnoreCase))
+        {
+            gigabytes = number / 1024;
+            return true;
+        }
+
+        gigabytes = number;
+        return true;
+    }
+
     private static string FormatBytes(long bytes)
     {
         const double gb = 1024d * 1024d * 1024d;
@@ -453,6 +851,14 @@ sealed partial class StandaloneSystemAlertsReader
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx lpBuffer);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetDiskFreeSpaceExW", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetDiskFreeSpaceEx(
+        string lpDirectoryName,
+        out ulong lpFreeBytesAvailableToCaller,
+        out ulong lpTotalNumberOfBytes,
+        out ulong lpTotalNumberOfFreeBytes);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct MemoryStatusEx
@@ -493,6 +899,13 @@ sealed class SystemAlertsSummary
     public int MemoryUsagePercent { get; set; }
     public int DataServerCpuPercent { get; set; }
     public int DataServerMemoryUsagePercent { get; set; }
+}
+
+sealed class DataServerMetricsResult
+{
+    public IReadOnlyList<SystemDriveMetric> Drives { get; set; } = [];
+    public int CpuPercent { get; set; }
+    public int MemoryUsagePercent { get; set; }
 }
 
 sealed class SystemDriveMetric

@@ -16,7 +16,7 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
 builder.Services.AddHttpClient<JenkinsTestResultsReader>();
 builder.Services.AddHttpClient<JenkinsLogReader>();
 builder.Services.AddHttpClient<JenkinsArtifactHistoryReader>();
-builder.Services.AddSingleton<StandaloneSystemAlertsReader>();
+builder.Services.AddHttpClient<StandaloneSystemAlertsReader>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
 builder.Services.AddHttpClient<CRM.Application.SystemHealth.CodeQualitySecurityService>();
@@ -38,7 +38,7 @@ api.MapGet("/code-quality-security", (StandaloneCodeQualitySecurityEndpoint endp
 api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.JenkinsLogAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/test-results", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.TestResultsAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
-api.MapGet("/system-alerts", (StandaloneSystemAlertsReader reader) => Results.Json(reader.Get()));
+api.MapGet("/system-alerts", async (StandaloneSystemAlertsReader reader, CancellationToken cancellationToken) => Results.Json(await reader.GetAsync(cancellationToken)));
 api.MapGet("/admin-environment", (SystemHealthOptions options) => Results.Json(SystemHealthSnapshots.AdminEnvironment(options)));
 api.MapGet("/email-workers", () => Results.Json(SystemHealthSnapshots.EmailWorkers()));
 api.MapGet("/artifact-history", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, int? buildCount, CancellationToken cancellationToken) => snapshots.ArtifactHistoryAsync(application ?? applicationKey, environment, buildCount, cancellationToken));
@@ -250,6 +250,9 @@ sealed class SystemAlertsOptions
     public string DeploymentRootPath { get; set; } = string.Empty;
     public string[] ApplicationServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
     public string[] DataServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
+    public string ApplicationServerMetricsSnapshotPath { get; set; } = @"C:\ProgramData\FHX\SystemHealth\test11-application-server-metrics.json";
+    public int ApplicationServerMetricsSnapshotMaxAgeMinutes { get; set; } = 30;
+    public string DataServerMetricsUrl { get; set; } = string.Empty;
 }
 
 sealed class CriticalHealthEventRequest
