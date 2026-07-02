@@ -1,0 +1,136 @@
+.system-health-module,
+.system-health-module .health-content,
+.system-health-module .health-panel { width: 100%; min-width: 0; max-width: 1420px; box-sizing: border-box; }
+.system-health-module .health-panel { display: grid; gap: 16px; }
+.system-health-module .filter-row, .system-health-module .inline-facts { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+.system-health-module .filter-row { align-items: end; gap: 12px; }
+.system-health-module .filter-row label { display: grid; gap: 5px; font-weight: 700; }
+.system-health-module .filter-row select, .system-health-module .filter-row input { border: 1px solid #b9c6d6; border-radius: 4px; background: #fff; padding: 7px 10px; font: inherit; font-weight: 400; color: #111827; }
+.system-health-module .compact-filter-row select { min-width: 190px; }
+.system-health-module .code-quality-toolbar { display: grid; justify-items: end; gap: 8px; }
+.system-health-module .last-updated { margin: 0; color: #526173; text-align: right; }
+.system-health-module .last-updated span { color: #111827; }
+.system-health-module .inline-refresh-button { border: 1px solid #198754; border-radius: 0; background: #198754; color: #fff; padding: 8px 14px; font: inherit; cursor: pointer; }
+.system-health-module .jenkins-log-toolbar { justify-content: flex-end; }
+.system-health-module .test-results-toolbar { justify-content: flex-end; }
+.system-health-module .artifact-history-toolbar { justify-content: flex-end; }
+.system-health-module .ai-code-analysis-toolbar { justify-content: flex-end; }
+.system-health-module .jenkins-log-toolbar label:first-of-type,
+.system-health-module .test-results-toolbar label:first-of-type,
+.system-health-module .artifact-history-toolbar label:first-of-type,
+.system-health-module .ai-code-analysis-toolbar label:first-of-type { width: 220px; }
+.system-health-module .jenkins-log-toolbar label:nth-of-type(2),
+.system-health-module .test-results-toolbar label:nth-of-type(2),
+.system-health-module .artifact-history-toolbar label:nth-of-type(2),
+.system-health-module .ai-code-analysis-toolbar label:nth-of-type(2) { width: 170px; }
+.system-health-module .artifact-history-toolbar label:nth-of-type(3) { width: 130px; }
+.system-health-module .jenkins-log-toolbar select,
+.system-health-module .test-results-toolbar select,
+.system-health-module .artifact-history-toolbar select,
+.system-health-module .ai-code-analysis-toolbar select { width: 100%; }
+.system-health-module .download-log-button { border: 1px solid #198754; border-radius: 4px; background: #198754; color: #fff; padding: 8px 14px; font: inherit; cursor: pointer; }
+.system-health-module .download-log-button:disabled { border-color: #9eb7a8; background: #9eb7a8; cursor: not-allowed; }
+.system-health-module .table-action { border: 1px solid #198754; border-radius: 4px; background: #198754; color: #fff; padding: 6px 10px; font: inherit; cursor: pointer; white-space: nowrap; }
+.system-health-module .inline-error { border: 1px solid #dc3545; background: #fde8e8; color: #a40000; padding: 8px 10px; margin-bottom: 10px; }
+.system-health-module .status-line { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.system-health-module .deployment-status-pill { display: inline-block; border: 1px solid #ffc857; border-radius: 999px; background: #fff3cd; color: #6b4c00; padding: 3px 8px; font-size: 12px; font-weight: 700; }
+.system-health-module .deployment-status-pill.healthy, .system-health-module .deployment-status-pill.ok, .system-health-module .deployment-status-pill.passed { border-color: #28a745; background: #e9f8ee; color: #176b2c; }
+.system-health-module .deployment-status-pill.warning { border-color: #ffc857; background: #fff3cd; color: #6b4c00; }
+.system-health-module .deployment-status-pill.critical, .system-health-module .deployment-status-pill.high, .system-health-module .deployment-status-pill.blocker, .system-health-module .deployment-status-pill.major, .system-health-module .deployment-status-pill.failure, .system-health-module .deployment-status-pill.failed, .system-health-module .deployment-status-pill.error { border-color: #dc3545; background: #fde8e8; color: #a40000; }
+.system-health-module .deployment-status-pill.low, .system-health-module .deployment-status-pill.medium, .system-health-module .deployment-status-pill.moderate, .system-health-module .deployment-status-pill.minor { border-color: #ffc857; background: #fff3cd; color: #6b4c00; }
+.system-health-module .artifact-type-pill { display: inline-block; border: 1px solid #b9c6d6; border-radius: 999px; background: #f4f8fc; color: #334155; padding: 3px 8px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.system-health-module .artifact-type-pill.rollback { border-color: #198754; background: #e9f8ee; color: #176b2c; }
+.system-health-module .artifact-relative-path { display: block; margin-top: 4px; color: #526173; overflow-wrap: anywhere; }
+.system-health-module .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; min-width: 0; }
+.system-health-module .metric-card, .system-health-module .plain-card, .system-health-module .drive-panel, .system-health-module .worker-card, .system-health-module .table-section { border: 1px solid #cfd8e3; background: #fff; padding: 14px; min-width: 0; box-sizing: border-box; }
+.system-health-module .metric-card { display: grid; gap: 6px; }
+.system-health-module .metric-card span { color: #4b5563; }
+.system-health-module .metric-card strong { font-size: 18px; font-weight: 600; }
+.system-health-module .status-metric-card,
+.system-health-module .status-metric-card.warning { font-weight: 400; }
+.system-health-module .status-metric-card strong { font-size: inherit; font-weight: 400; }
+.system-health-module .quality-section { display: grid; gap: 12px; }
+.system-health-module .quality-section h2, .system-health-module .table-heading-row h2 { margin: 0; font-size: 26px; font-weight: 700; }
+.system-health-module .section-summary { margin: 0; color: #4b5563; font-size: 14px; }
+.system-health-module .github-scanner-section { border: 2px solid #b9c6d6; border-radius: 4px; padding: 16px; background: #f8fbff; }
+.system-health-module .github-scanner-section + .github-scanner-section { margin-top: 8px; }
+.system-health-module .dependabot-scanner-section { border-left: 8px solid #0d6efd; }
+.system-health-module .codeql-scanner-section { border-left: 8px solid #6f42c1; }
+.system-health-module .secret-scanner-section { border-left: 8px solid #198754; }
+.system-health-module .sonar-code-analysis-section { border-left: 8px solid #2563eb; }
+.system-health-module .lint-standards-section { border-left: 8px solid #0f766e; }
+.system-health-module .cyclone-dx-section { border-left: 8px solid #7c3aed; }
+.system-health-module .dependency-check-section { border-left: 8px solid #b45309; }
+.system-health-module .playwright-results-section { border-left: 8px solid #0891b2; }
+.system-health-module .github-scanner-details { background: #fff; }
+.system-health-module .quality-metric-grid { grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 14px 24px; }
+.system-health-module .github-security-grid { grid-template-columns: repeat(4, minmax(180px, 1fr)); }
+.system-health-module .status-metric-card { min-height: 70px; align-content: center; justify-items: center; text-align: center; box-shadow: 0 8px 18px rgba(17, 24, 39, 0.12); }
+.system-health-module .status-metric-card.healthy { border-color: #28a745; background: #f6fff8; }
+.system-health-module .status-metric-card.warning { border-color: #ffc107; background: #fff3cd; }
+.system-health-module .status-metric-card.critical { border-color: #dc3545; background: #fff6f6; }
+.system-health-module .status-metric-card.unknown { border-color: #cfd8e3; background: #fff; }
+.system-health-module .status-metric-card.healthy strong { color: #008000; }
+.system-health-module .status-metric-card.warning strong { color: #e0a800; }
+.system-health-module .status-metric-card.critical strong { color: #dc3545; }
+.system-health-module .status-metric-card.unknown strong { color: #6b7280; }
+.system-health-module .table-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.system-health-module .plain-card h4, .system-health-module .drive-panel h4, .system-health-module .table-section h4 { margin: 0 0 10px; font-size: 18px; }
+.system-health-module .table-heading-row h4 { margin: 0; }
+.system-health-module .plain-card ul { margin: 0; padding-left: 20px; }
+.system-health-module .plain-card li + li { margin-top: 6px; }
+.system-health-module .two-column { display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 16px; }
+.system-health-module .drive-list { display: grid; gap: 12px; }
+.system-health-module .drive-row-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.system-health-module .drive-meter { height: 12px; border: 1px solid #cfd8e3; background: #f4f8fc; margin: 8px 0; }
+.system-health-module .drive-meter span { display: block; height: 100%; background: #28a745; }
+.system-health-module .drive-meter span.warning { background: #ffc107; }
+.system-health-module .drive-meter span.critical { background: #dc3545; }
+.system-health-module .health-state { display: inline-block; border: 1px solid #ffc857; border-radius: 999px; background: #fff3cd; color: #6b4c00; padding: 3px 8px; font-size: 12px; font-weight: 700; }
+.system-health-module .health-state.healthy { border-color: #28a745; background: #e9f8ee; color: #176b2c; }
+.system-health-module .health-state.critical, .system-health-module .health-state.failure, .system-health-module .health-state.failed, .system-health-module .health-state.error { border-color: #dc3545; background: #fde8e8; color: #a40000; }
+.system-health-module .worker-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.system-health-module .worker-card { border: 1px solid #cfd8e3; background: #fff; padding: 14px; }
+.system-health-module .worker-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.system-health-module .worker-header h4, .system-health-module .worker-header p { margin: 0; }
+.system-health-module .worker-card dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; margin: 14px 0; }
+.system-health-module .worker-card dt { font-weight: 700; color: #4b5563; }
+.system-health-module .worker-card dd { margin: 0; }
+.system-health-module .worker-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.system-health-module .worker-metric { border: 1px solid #d7dee8; padding: 8px; }
+.system-health-module .worker-metric span, .system-health-module .worker-metric strong { display: block; }
+.system-health-module .empty-state { color: #4b5563; }
+.system-health-module .log-output { max-height: 620px; overflow: auto; margin: 0; padding: 12px; background: #111827; color: #e5e7eb; font-size: 12px; line-height: 1.45; white-space: pre-wrap; }
+.system-health-module .table-wrap { width: 100%; max-width: 100%; min-width: 0; overflow-x: auto; }
+.system-health-module table { width: 100%; border-collapse: collapse; }
+.system-health-module th, .system-health-module td { border: 1px solid #d7dee8; padding: 7px 8px; text-align: left; vertical-align: top; }
+.system-health-module th { background: #f4f8fc; }
+.system-health-module .test-results-page { overflow-x: clip; }
+.system-health-module .test-results-page .metric-grid { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+.system-health-module .test-results-page .test-results-table { min-width: 960px; table-layout: auto; }
+.system-health-module .test-results-page .api-functional-table th:first-child,
+.system-health-module .test-results-page .api-functional-table td:first-child { max-width: 420px; overflow-wrap: anywhere; word-break: break-word; }
+.system-health-module .ai-code-analysis-page .metric-grid:not(.ai-severity-grid) { grid-template-columns: repeat(4, minmax(120px, 1fr)); }
+.system-health-module .ai-code-analysis-page .ai-severity-grid { grid-template-columns: repeat(4, minmax(180px, 1fr)); gap: 14px 24px; }
+.system-health-module .ai-code-analysis-page .ai-findings-table { min-width: 1120px; table-layout: auto; }
+.system-health-module .ai-code-analysis-page .ai-findings-table td:nth-child(4),
+.system-health-module .ai-code-analysis-page .ai-findings-table td:nth-child(6),
+.system-health-module .ai-code-analysis-page .ai-findings-table td:nth-child(7) { overflow-wrap: anywhere; word-break: break-word; }
+.system-health-module .warning { color: #a15c00; font-weight: 700; }
+@media (max-width: 900px) {
+  .system-health-module .worker-card dl { grid-template-columns: 1fr; }
+  .system-health-module .two-column { grid-template-columns: 1fr; }
+  .system-health-module .quality-metric-grid, .system-health-module .github-security-grid, .system-health-module .ai-code-analysis-page .ai-severity-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+  .system-health-module .test-results-page .metric-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+  .system-health-module .code-quality-toolbar { align-items: stretch; }
+  .system-health-module .compact-filter-row { width: 100%; }
+  .system-health-module .jenkins-log-toolbar label:first-of-type,
+  .system-health-module .test-results-toolbar label:first-of-type,
+  .system-health-module .artifact-history-toolbar label:first-of-type,
+  .system-health-module .ai-code-analysis-toolbar label:first-of-type,
+  .system-health-module .jenkins-log-toolbar label:nth-of-type(2),
+  .system-health-module .test-results-toolbar label:nth-of-type(2),
+  .system-health-module .artifact-history-toolbar label:nth-of-type(2),
+  .system-health-module .ai-code-analysis-toolbar label:nth-of-type(2),
+  .system-health-module .artifact-history-toolbar label:nth-of-type(3) { width: min(100%, 260px); }
+}

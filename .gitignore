@@ -1,0 +1,8 @@
+node_modules/
+dist/
+_publish/
+*.tsbuildinfo
+bin/
+obj/
+SystemHealth.Api/bin/
+SystemHealth.Api/obj/
