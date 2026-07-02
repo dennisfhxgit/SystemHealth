@@ -254,7 +254,16 @@ sealed class JenkinsTestResultsReader
                 continue;
             }
 
-            var artifactText = File.ReadAllText(artifactPath);
+            string artifactText;
+            try
+            {
+                artifactText = File.ReadAllText(artifactPath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                continue;
+            }
+
             var cases = relativePath.EndsWith(".trx", StringComparison.OrdinalIgnoreCase)
                 ? ReadTrxTestCases(artifactText)
                 : ReadJunitTestCases(artifactText);

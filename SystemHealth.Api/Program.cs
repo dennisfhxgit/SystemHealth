@@ -165,7 +165,7 @@ sealed class RepositoryOptions
     public string Owner { get; set; } = "MyLifeStoryVault-Ltd";
     public string Name { get; set; } = "My-Life-Story-Vault";
     public string Url { get; set; } = "https://github.com/MyLifeStoryVault-Ltd/My-Life-Story-Vault";
-    public string Ref { get; set; } = "main";
+    public string Ref { get; set; } = "master";
     public string GitHubApiBaseUrl { get; set; } = "https://api.github.com";
     public string GitHubToken { get; set; } = string.Empty;
 }

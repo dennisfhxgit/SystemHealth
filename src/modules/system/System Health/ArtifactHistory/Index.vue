@@ -27,18 +27,19 @@
     <div class="inline-facts">
       <span>Job: {{ data?.jobName || 'Not configured' }}</span>
       <span>Scope: {{ selectedBuildScope }}</span>
-      <span>Artifacts: {{ data?.artifacts?.length || 0 }}</span>
+      <span>Artifacts: {{ artifacts.length }}</span>
+      <span>Rollback Files: {{ rollbackArtifacts.length }}</span>
       <span>Rollback Snapshots: {{ rollbackSnapshotCount }}</span>
+      <span>Build Artifacts: {{ buildArtifacts.length }}</span>
     </div>
     <section class="table-section">
-      <h4>Artifacts</h4>
+      <h4>Rollback Snapshots</h4>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Type</th><th>Rollback</th><th>Filename</th><th>Build</th><th>Size</th><th>Created</th><th>Download</th><th>Build Log</th></tr></thead>
+          <thead><tr><th>Type</th><th>Filename</th><th>Build</th><th>Size</th><th>Created</th><th>Download</th><th>Build Log</th></tr></thead>
           <tbody>
-            <tr v-for="(row, index) in data?.artifacts || []" :key="row.id ?? row.key ?? index">
-              <td><span :class="['artifact-type-pill', row.isRollbackArtifact ? 'rollback' : 'standard']">{{ row.artifactType ?? 'Build Artifact' }}</span></td>
-              <td><span :class="['artifact-type-pill', row.isRollbackArtifact ? 'rollback' : 'standard']">{{ row.isRollbackArtifact ? 'Yes' : 'No' }}</span></td>
+            <tr v-for="(row, index) in rollbackArtifacts" :key="row.id ?? row.key ?? index">
+              <td><span class="artifact-type-pill rollback">{{ row.artifactType ?? 'Rollback Snapshot' }}</span></td>
               <td>
                 <span>{{ row.displayName ?? row.fileName ?? '-' }}</span>
                 <small v-if="row.relativePath" class="artifact-relative-path">{{ row.relativePath }}</small>
@@ -46,7 +47,27 @@
               <td><a v-if="row.downloadUrl" :href="row.downloadUrl" target="_blank" rel="noopener noreferrer">Download</a><span v-else>Not available</span></td>
               <td><a v-if="row.logUrl" :href="row.logUrl" target="_blank" rel="noopener noreferrer">Build Log</a><span v-else>Not available</span></td>
             </tr>
-            <tr v-if="!(data?.artifacts || []).length"><td colspan="8">No artifacts were found for the selected filters.</td></tr>
+            <tr v-if="!rollbackArtifacts.length"><td colspan="7">No rollback snapshots were found for the selected filters.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="table-section">
+      <h4>Built Artifacts</h4>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Type</th><th>Filename</th><th>Build</th><th>Size</th><th>Created</th><th>Download</th><th>Build Log</th></tr></thead>
+          <tbody>
+            <tr v-for="(row, index) in buildArtifacts" :key="row.id ?? row.key ?? index">
+              <td><span class="artifact-type-pill standard">{{ row.artifactType ?? 'Build Artifact' }}</span></td>
+              <td>
+                <span>{{ row.displayName ?? row.fileName ?? '-' }}</span>
+                <small v-if="row.relativePath" class="artifact-relative-path">{{ row.relativePath }}</small>
+              </td><td>{{ row.buildNumber ?? '-' }}</td><td>{{ row.size ?? '-' }}</td><td>{{ formatDateTime(row.created) }}</td>
+              <td><a v-if="row.downloadUrl" :href="row.downloadUrl" target="_blank" rel="noopener noreferrer">Download</a><span v-else>Not available</span></td>
+              <td><a v-if="row.logUrl" :href="row.logUrl" target="_blank" rel="noopener noreferrer">Build Log</a><span v-else>Not available</span></td>
+            </tr>
+            <tr v-if="!buildArtifacts.length"><td colspan="7">No built artifacts were found for the selected filters.</td></tr>
           </tbody>
         </table>
       </div>
@@ -61,6 +82,20 @@ import { formatDateTime, healthEnvironmentOptions, statusClass, useFilteredHealt
 const props = defineProps<HealthChildPageProps>()
 const emit = defineEmits<HealthChildPageEmits>()
 const filter = reactive({ application: 'my-life-story-vault', environment: 'Development', buildCount: 1 })
+type ArtifactHistoryRow = {
+  id?: string
+  key?: string
+  artifactType?: string
+  isRollbackArtifact?: boolean
+  displayName?: string
+  fileName?: string
+  relativePath?: string
+  buildNumber?: string | number
+  size?: string
+  created?: string
+  downloadUrl?: string
+  logUrl?: string
+}
 const { data, load } = useFilteredHealthChildPage({
   props,
   emit,
@@ -79,13 +114,12 @@ const buildCountOptions = computed(() => {
   return counts?.length ? counts : [1, 10, 30, 50, 100]
 })
 const selectedBuildScope = computed(() => buildCountLabel(Number(data.value?.selectedBuildCount ?? filter.buildCount)))
+const artifacts = computed(() => (data.value?.artifacts || []) as ArtifactHistoryRow[])
+const rollbackArtifacts = computed(() => artifacts.value.filter((artifact: ArtifactHistoryRow) => Boolean(artifact.isRollbackArtifact)))
+const buildArtifacts = computed(() => artifacts.value.filter((artifact: ArtifactHistoryRow) => !artifact.isRollbackArtifact))
 const rollbackSnapshotCount = computed(() => {
   const snapshotKeys = new Set<string>()
-  for (const artifact of data.value?.artifacts || []) {
-    if (!artifact.isRollbackArtifact) {
-      continue
-    }
-
+  for (const artifact of rollbackArtifacts.value) {
     const relativePath = String(artifact.relativePath ?? '')
     const match = relativePath.match(/^_rollback\/([^/]+)\/website-current\//i)
     snapshotKeys.add(match?.[1] ?? String(artifact.buildNumber ?? relativePath))

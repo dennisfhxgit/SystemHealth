@@ -497,6 +497,18 @@ pipeline {
           -BaseUrl $env:TEST12_URL `
           -OutputPath (Join-Path $env:WORKSPACE 'TestResults/api-performance.junit.xml') `
           -SamplesPerEndpoint 3
+
+        $appcmd = Join-Path $env:windir 'System32/inetsrv/appcmd.exe'
+        $appPoolUser = (& $appcmd list apppool $env:TEST12_APPPOOL /text:processModel.userName).Trim()
+        if ([string]::IsNullOrWhiteSpace($appPoolUser)) {
+          throw "Could not resolve processModel.userName for app pool $env:TEST12_APPPOOL."
+        }
+
+        $testResultsPath = Join-Path $env:WORKSPACE 'TestResults'
+        $grantResult = Start-Process -FilePath 'icacls.exe' -ArgumentList @($testResultsPath, '/grant', "$($appPoolUser):(OI)(CI)RX") -NoNewWindow -Wait -PassThru
+        if ($grantResult.ExitCode -ne 0) {
+          throw "Grant TestResults read access to $appPoolUser failed with exit code $($grantResult.ExitCode)."
+        }
         '''
         junit allowEmptyResults: false, testResults: 'TestResults/api-performance.junit.xml'
         archiveArtifacts artifacts: 'TestResults/api-performance.junit.xml', allowEmptyArchive: false, fingerprint: true

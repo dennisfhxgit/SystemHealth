@@ -6,6 +6,9 @@ using System.Text.Json;
 
 sealed partial class StandaloneSystemAlertsReader
 {
+    private static readonly string[] DefaultApplicationServerDriveLetters = ["B:\\", "C:\\", "W:\\"];
+    private static readonly string[] DefaultDataServerDriveLetters = ["C:\\", "D:\\", "L:\\"];
+
     private const string ApplicationServerSource = "Application Server";
     private const string DataServerSource = "Data Server";
     private const string HealthyStatus = "Healthy";
@@ -655,17 +658,28 @@ sealed partial class StandaloneSystemAlertsReader
             DeploymentRootPath = string.IsNullOrWhiteSpace(options.DeploymentRootPath)
                 ? AppContext.BaseDirectory
                 : options.DeploymentRootPath,
-            ApplicationServerDriveLetters = NormalizeDriveLetters(options.ApplicationServerDriveLetters),
-            DataServerDriveLetters = NormalizeDriveLetters(options.DataServerDriveLetters),
+            ApplicationServerDriveLetters = NormalizeDriveLetters(options.ApplicationServerDriveLetters, DefaultApplicationServerDriveLetters),
+            DataServerDriveLetters = NormalizeDriveLetters(options.DataServerDriveLetters, DefaultDataServerDriveLetters),
             ApplicationServerMetricsSnapshotPath = options.ApplicationServerMetricsSnapshotPath,
             ApplicationServerMetricsSnapshotMaxAgeMinutes = Math.Clamp(options.ApplicationServerMetricsSnapshotMaxAgeMinutes, 1, 1440),
             DataServerMetricsUrl = options.DataServerMetricsUrl
         };
     }
 
-    private static string[] NormalizeDriveLetters(string[]? driveLetters)
+    private static string[] NormalizeDriveLetters(string[]? driveLetters, IReadOnlyList<string> fallbackDriveLetters)
     {
-        return (driveLetters ?? [])
+        var normalized = (driveLetters ?? [])
+            .Select(NormalizeDriveName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (normalized.Length > 0)
+        {
+            return normalized;
+        }
+
+        return fallbackDriveLetters
             .Select(NormalizeDriveName)
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
