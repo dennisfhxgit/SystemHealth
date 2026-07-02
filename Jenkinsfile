@@ -21,10 +21,11 @@ pipeline {
     TEST12_PATH = 'W:/vhosts/fhx.co.nz/test12.fhx.co.nz'
     TEST12_APPPOOL = 'test12.fhx.co.nz(domain)(4.0)(pool)'
     TEST12_URL = 'https://test12.fhx.co.nz'
+    CRM_RUNTIME_SECRETS_DIR = 'C:/ProgramData/FHX/CRM/secrets/test11.fhx.co.nz(domain)(4.0)(pool)'
     SONAR_PROJECT_KEY = 'SystemHealth'
     SONAR_HOST_URL = 'https://sonarqube.fhx.co.nz'
     SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,coverage/**'
-    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,coverage/**,SystemHealth.Api/Jenkins*Reader.cs,SystemHealth.Api/StandaloneSystemAlertsReader.cs,SystemHealth.Api/StandaloneCodeQualitySecurityEndpoint.cs,SystemHealth.Api/AdminEnvironment*.cs,SystemHealth.Api/Program.cs'
+    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,coverage/**,SystemHealth.Api/Jenkins*Reader.cs,SystemHealth.Api/StandaloneSystemAlertsReader.cs,SystemHealth.Api/StandaloneCodeQualitySecurityEndpoint.cs,SystemHealth.Api/StandaloneEmailWorkersReader.cs,SystemHealth.Api/AdminEnvironment*.cs,SystemHealth.Api/Program.cs'
     SONAR_JS_LCOV_REPORT_PATHS = 'coverage/lcov.info'
     SONAR_TEST_INCLUSIONS = 'src/**/*.test.ts'
   }
@@ -296,6 +297,25 @@ pipeline {
           Invoke-NativeChecked -Label "Grant Jenkins log read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($BuildsRoot, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
         }
 
+        function Grant-CrmRuntimeSecretsReadAccess {
+          param(
+            [Parameter(Mandatory=$true)][string]$AppCmd,
+            [Parameter(Mandatory=$true)][string]$AppPoolName,
+            [Parameter(Mandatory=$true)][string]$SecretsDirectory
+          )
+
+          if (-not (Test-Path -LiteralPath $SecretsDirectory)) {
+            throw "CRM runtime secrets directory not found before ACL grant: $SecretsDirectory"
+          }
+
+          $appPoolUser = (& $AppCmd list apppool $AppPoolName /text:processModel.userName).Trim()
+          if ([string]::IsNullOrWhiteSpace($appPoolUser)) {
+            throw "Could not resolve processModel.userName for app pool $AppPoolName."
+          }
+
+          Invoke-NativeChecked -Label "Grant CRM runtime secrets read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($SecretsDirectory, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
+        }
+
         function Remove-UnsafeRollbackSnapshotFiles {
           param([Parameter(Mandatory=$true)][string]$RollbackRoot)
 
@@ -446,6 +466,7 @@ pipeline {
 
           Invoke-RobocopyChecked -Label 'SystemHealth Test12' -Arguments $robocopyArgs
           Grant-JenkinsLogReadAccess -AppCmd $appcmd -AppPoolName $appPool -BuildsRoot $jenkinsBuildsRoot
+          Grant-CrmRuntimeSecretsReadAccess -AppCmd $appcmd -AppPoolName $appPool -SecretsDirectory $env:CRM_RUNTIME_SECRETS_DIR
         }
         finally {
           if (Test-Path -LiteralPath $appOffline) {

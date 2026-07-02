@@ -20,6 +20,7 @@ builder.Services.AddHttpClient<JenkinsArtifactHistoryReader>();
 builder.Services.AddHttpClient<JenkinsAiCodeAnalysisReader>();
 builder.Services.AddHttpClient<StandaloneSystemAlertsReader>();
 builder.Services.AddHttpClient<AdminEnvironmentHealthService>();
+builder.Services.AddSingleton<StandaloneEmailWorkersReader>();
 builder.Services.AddSingleton<IAdminEnvironmentUptimeProvider, IisAdminEnvironmentUptimeProvider>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
@@ -45,7 +46,7 @@ api.MapGet("/ai-code-analysis", async (JenkinsAiCodeAnalysisReader reader, Syste
     Results.Json(await reader.GetAsync(options, application ?? applicationKey, environment, buildId, cancellationToken)));
 api.MapGet("/system-alerts", async (StandaloneSystemAlertsReader reader, CancellationToken cancellationToken) => Results.Json(await reader.GetAsync(cancellationToken)));
 api.MapGet("/admin-environment", async (AdminEnvironmentHealthService service, CancellationToken cancellationToken) => Results.Json(await service.GetSnapshotAsync(cancellationToken)));
-api.MapGet("/email-workers", () => Results.Json(SystemHealthSnapshots.EmailWorkers()));
+api.MapGet("/email-workers", async (StandaloneEmailWorkersReader reader, CancellationToken cancellationToken) => Results.Json(await reader.GetAsync(cancellationToken)));
 api.MapGet("/artifact-history", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, int? buildCount, CancellationToken cancellationToken) => snapshots.ArtifactHistoryAsync(application ?? applicationKey, environment, buildCount, cancellationToken));
 api.MapGet("/backups", () => Results.Json(SystemHealthSnapshots.Unavailable("Backups", "Backups are not configured for the standalone Test12 SystemHealth app.")));
 api.MapGet("/critical-events", () => Results.Json(new { sections = Array.Empty<CriticalHealthSection>() }));
@@ -109,16 +110,6 @@ sealed class SystemHealthSnapshots
         return Results.Json(await _artifactHistoryReader.GetAsync(_options, applicationKey, environment, buildCount, cancellationToken));
     }
 
-    public static object EmailWorkers()
-    {
-        return new
-        {
-            overallStatus = "Unavailable",
-            statusDetail = "Email worker database state is intentionally removed from the standalone Test12 app.",
-            workers = Array.Empty<object>()
-        };
-    }
-
     public static object Unavailable(string section, string detail)
     {
         return new { status = "Unavailable", statusDetail = detail, section };
@@ -139,6 +130,7 @@ sealed class SystemHealthOptions
     public CodeQualitySecurityRuntimeOptions CodeQualitySecurity { get; set; } = new();
     public SystemAlertsOptions SystemAlerts { get; set; } = new();
     public AdminEnvironmentOptions AdminEnvironment { get; set; } = new();
+    public EmailWorkersOptions EmailWorkers { get; set; } = new();
 }
 
 sealed class RepositoryOptions

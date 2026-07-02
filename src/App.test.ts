@@ -103,6 +103,50 @@ function responseFor(url: string) {
     })
   }
 
+  if (url.startsWith('/api/system-health/email-workers')) {
+    return jsonResponse({
+      generatedAtUtc: '2026-07-02T10:00:00Z',
+      overallStatus: 'Healthy',
+      workers: [
+        {
+          key: 'system-email-queue',
+          name: 'System Email Queue',
+          enabled: true,
+          status: 'Healthy',
+          statusDetail: 'Last recorded run completed successfully.',
+          pollIntervalSeconds: 60,
+          leaseMinutes: 10,
+          batchSize: 25,
+          dailyLimit: 1000,
+          sentToday: 7,
+          remainingToday: 993,
+          lastRunStartedAtUtc: '2026-07-02T09:55:00Z',
+          lastRunCompletedAtUtc: '2026-07-02T09:56:00Z',
+          metrics: [
+            { label: 'Pending', value: 2, status: 'Neutral' },
+            { label: 'Failed', value: 0, status: 'Neutral' }
+          ]
+        },
+        {
+          key: 'mailchimp-subscription-sync',
+          name: 'Mailchimp Subscription Sync',
+          enabled: true,
+          status: 'Healthy',
+          statusDetail: 'Last recorded run completed successfully.',
+          pollIntervalSeconds: 21600,
+          leaseMinutes: 0,
+          batchSize: 1000,
+          audienceCount: 2,
+          lastRunStartedAtUtc: '2026-07-02T08:00:00Z',
+          lastRunCompletedAtUtc: '2026-07-02T08:01:00Z',
+          metrics: [
+            { label: 'Active Mailchimp unsubscribes', value: 4, status: 'Neutral' }
+          ]
+        }
+      ]
+    })
+  }
+
   return jsonResponse({
     status: 'Warning',
     statusDetail: 'Runtime provider not configured.',
@@ -173,5 +217,25 @@ describe('standalone SystemHealth app', () => {
     expect(wrapper.text()).toContain('3 days 4 hr')
     expect(wrapper.text()).toContain('Live')
     expect(wrapper.text()).toContain('Health check returned success.')
+  })
+
+  it('renders server Email Workers health', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const workersButton = wrapper.findAll('button').find(button => button.text() === 'Email Workers')
+    expect(workersButton).toBeTruthy()
+    await workersButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('System Email Queue')
+    expect(wrapper.text()).toContain('Last recorded run completed successfully.')
+    expect(wrapper.text()).toContain('Pending')
+    expect(wrapper.text()).toContain('Failed')
+    expect(wrapper.text()).toContain('Daily limit')
+    expect(wrapper.text()).toContain('993')
+    expect(wrapper.text()).toContain('Mailchimp Subscription Sync')
+    expect(wrapper.text()).toContain('Active Mailchimp unsubscribes')
+    expect(wrapper.text()).toContain('Audiences')
   })
 })
