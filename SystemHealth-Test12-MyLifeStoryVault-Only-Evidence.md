@@ -72,7 +72,7 @@ MyLifeStoryVault-Ltd/My-Life-Story-Vault
 - Publish command and result: `dotnet publish SystemHealth.Api\SystemHealth.Api.csproj -c Release -o _publish` passed after rerunning serially. The first parallel build/publish attempt hit a transient static asset compression file lock.
 - Endpoint smoke-test results: local published app on `http://127.0.0.1:5012` returned HTTP 200 for `/health`, `/`, `/api/system-health/code-quality-security`, `/api/system-health/system-alerts`, `/api/system-health/admin-environment`, `/api/system-health/email-workers`, `/api/system-health/critical-events`, `/api/system-health/backups`, `/api/system-health/jenkins-log`, `/api/system-health/test-results`, `/api/system-health/artifact-history`, and `/api/system-health/ai-code-analysis`.
 - Refresh/deep-link routing: local published app returned HTTP 200 and the Vue root for `/system-health`, `/system-health/code-quality-security`, and `/anything/deep/link`.
-- Deployment notes: source includes `Jenkinsfile`; the existing Jenkins `SystemHealth` job config was observed as an empty flow definition and was not changed. No live Test12 deployment was performed.
+- Deployment notes: source includes a Jenkins `SystemHealth` pipeline that checks out `dennisfhxgit/SystemHealth` `master`, runs frontend install/typecheck/lint/test/build, runs backend restore/build/test/publish, deploys the publish artifact to `W:\vhosts\fhx.co.nz\test12.fhx.co.nz`, restarts app pool `test12.fhx.co.nz(domain)(4.0)(pool)`, and runs Test12 endpoint/deep-link smoke checks. The live Jenkins `SystemHealth` job config was changed from an empty flow definition to an SCM pipeline that loads this repo `Jenkinsfile`; the previous config was backed up under `C:\Users\mldconst\Desktop\Handovers\JenkinsConfigBackups`.
 - Test12 route load: not run because the app has not been deployed to a live Test12 target in this task.
 
 ## Scope Boundary
@@ -81,4 +81,4 @@ Test10 and MLSCTest10 were not modified.
 
 ## Blockers
 
-- Live Test12 deployment verification depends on runtime deploy target and Jenkins job configuration.
+- Live Test12 deployment verification depends on running the Jenkins `SystemHealth` job. Jenkins API access from this session returned HTTP 403, so the job was not triggered from Codex.

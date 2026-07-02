@@ -46,4 +46,4 @@ The source extraction review found the CRM module depended on SQL-backed areas t
 
 ## Blockers
 
-- Test12 deployment and live browser verification require a deploy target and Jenkins/runtime configuration. No Test12 runtime change has been made by this evidence file.
+- Test12 deployment and live browser verification require the Jenkins `SystemHealth` job to run. The job is now wired to the repo Jenkinsfile, but Jenkins API access from this session returned HTTP 403, so the job was not triggered from Codex.
