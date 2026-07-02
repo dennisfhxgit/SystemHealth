@@ -16,6 +16,7 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
 builder.Services.AddHttpClient<JenkinsTestResultsReader>();
 builder.Services.AddHttpClient<JenkinsLogReader>();
 builder.Services.AddHttpClient<JenkinsArtifactHistoryReader>();
+builder.Services.AddSingleton<StandaloneSystemAlertsReader>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
 builder.Services.AddHttpClient<CRM.Application.SystemHealth.CodeQualitySecurityService>();
@@ -37,7 +38,7 @@ api.MapGet("/code-quality-security", (StandaloneCodeQualitySecurityEndpoint endp
 api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.JenkinsLogAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/test-results", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken) => snapshots.TestResultsAsync(application ?? applicationKey, environment, buildId, cancellationToken));
 api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
-api.MapGet("/system-alerts", () => Results.Json(SystemHealthSnapshots.SystemAlerts()));
+api.MapGet("/system-alerts", (StandaloneSystemAlertsReader reader) => Results.Json(reader.Get()));
 api.MapGet("/admin-environment", (SystemHealthOptions options) => Results.Json(SystemHealthSnapshots.AdminEnvironment(options)));
 api.MapGet("/email-workers", () => Results.Json(SystemHealthSnapshots.EmailWorkers()));
 api.MapGet("/artifact-history", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, int? buildCount, CancellationToken cancellationToken) => snapshots.ArtifactHistoryAsync(application ?? applicationKey, environment, buildCount, cancellationToken));
@@ -127,36 +128,6 @@ sealed class SystemHealthSnapshots
         return Results.Json(await _artifactHistoryReader.GetAsync(_options, applicationKey, environment, buildCount, cancellationToken));
     }
 
-    public static object SystemAlerts()
-    {
-        return new
-        {
-            status = "Warning",
-            statusDetail = "Standalone Test12 SystemHealth has no MSSQL or source database health check.",
-            summary = new
-            {
-                critical = 0,
-                warnings = 1,
-                processCpuPercent = 0,
-                memoryUsagePercent = 0,
-                dataServerCpuPercent = 0,
-                dataServerMemoryUsagePercent = 0
-            },
-            applicationDrives = Array.Empty<object>(),
-            dataServerDrives = Array.Empty<object>(),
-            checks = new[]
-            {
-                new { name = "MSSQL dependency", status = "Healthy", detail = "No MSSQL connection is required.", lastCheckedUtc = DateTimeOffset.UtcNow },
-                new { name = "Access gate dependency", status = "Healthy", detail = "No interactive access gate or database-backed user state is required.", lastCheckedUtc = DateTimeOffset.UtcNow }
-            },
-            dataServerChecks = Array.Empty<object>(),
-            alerts = new[]
-            {
-                new { source = "Runtime Configuration", status = "Warning", severity = "Warning", detail = "External provider credentials are runtime configuration and are not committed to source.", detectedAtUtc = DateTimeOffset.UtcNow }
-            }
-        };
-    }
-
     public static object AdminEnvironment(SystemHealthOptions options)
     {
         return new
@@ -210,6 +181,7 @@ sealed class SystemHealthOptions
     public SonarQubeOptions SonarQube { get; set; } = new();
     public ArtifactOptions Artifacts { get; set; } = new();
     public CodeQualitySecurityRuntimeOptions CodeQualitySecurity { get; set; } = new();
+    public SystemAlertsOptions SystemAlerts { get; set; } = new();
 }
 
 sealed class RepositoryOptions
@@ -265,6 +237,18 @@ sealed class CodeQualitySecurityRuntimeOptions
     public bool DependencyCheckRequireNodeModules { get; set; }
     public int PlaywrightMaximumReportAgeHours { get; set; } = 24;
     public int LintMaximumReportAgeHours { get; set; } = 24;
+}
+
+sealed class SystemAlertsOptions
+{
+    public int DiskWarningPercent { get; set; } = 85;
+    public int DiskCriticalPercent { get; set; } = 95;
+    public int MemoryWarningPercent { get; set; } = 85;
+    public int MemoryCriticalPercent { get; set; } = 95;
+    public int ProcessCpuWarningPercent { get; set; } = 70;
+    public int ProcessCpuCriticalPercent { get; set; } = 90;
+    public string DeploymentRootPath { get; set; } = string.Empty;
+    public string[] ApplicationServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
 }
 
 sealed class CriticalHealthEventRequest
