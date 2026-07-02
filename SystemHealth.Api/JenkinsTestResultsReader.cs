@@ -117,7 +117,7 @@ sealed class JenkinsTestResultsReader
             return null;
         }
 
-        var metadata = ReadLocalBuildMetadata(buildDirectory, buildId);
+        var metadata = ReadLocalBuildMetadata(buildDirectory);
         var cases = ReadLocalArchivedTestCases(buildDirectory);
         await Task.CompletedTask.WaitAsync(cancellationToken);
         return new JenkinsTestReport(metadata.BuildId, metadata.Commit, metadata.Branch, metadata.Timestamp, cases);
@@ -202,7 +202,7 @@ sealed class JenkinsTestResultsReader
             .FirstOrDefault();
     }
 
-    private static JenkinsTestReportMetadata ReadLocalBuildMetadata(string buildDirectory, string requestedBuildId)
+    private static JenkinsTestReportMetadata ReadLocalBuildMetadata(string buildDirectory)
     {
         var resolvedBuildId = Path.GetFileName(buildDirectory);
         var buildXmlPath = Path.Combine(buildDirectory, "build.xml");

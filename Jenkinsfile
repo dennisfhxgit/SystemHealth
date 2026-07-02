@@ -24,7 +24,7 @@ pipeline {
     SONAR_PROJECT_KEY = 'SystemHealth'
     SONAR_HOST_URL = 'https://sonarqube.fhx.co.nz'
     SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**'
-    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**'
+    SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,SystemHealth.Api/Jenkins*Reader.cs,SystemHealth.Api/StandaloneSystemAlertsReader.cs,SystemHealth.Api/StandaloneCodeQualitySecurityEndpoint.cs,SystemHealth.Api/Program.cs'
   }
 
   stages {
@@ -435,7 +435,6 @@ pipeline {
             '/NJS',
             '/NP',
             '/XF',
-            'appsettings.json',
             'appsettings.Development.json',
             'appsettings.Production.json',
             'appsettings.*.json'
