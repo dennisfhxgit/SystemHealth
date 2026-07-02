@@ -1,6 +1,7 @@
 node_modules/
 dist/
 _publish/
+_jenkins/
 *.tsbuildinfo
 bin/
 obj/
