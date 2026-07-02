@@ -25,6 +25,8 @@ pipeline {
     SONAR_HOST_URL = 'https://sonarqube.fhx.co.nz'
     SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**'
     SONAR_COVERAGE_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,SystemHealth.Api/Jenkins*Reader.cs,SystemHealth.Api/StandaloneSystemAlertsReader.cs,SystemHealth.Api/StandaloneCodeQualitySecurityEndpoint.cs,SystemHealth.Api/Program.cs'
+    SONAR_JS_LCOV_REPORT_PATHS = 'coverage/lcov.info'
+    SONAR_TEST_INCLUSIONS = 'src/**/*.test.ts'
   }
 
   stages {
@@ -113,7 +115,7 @@ pipeline {
         bat 'npm run typecheck'
         bat 'npm run lint'
         bat 'if not exist "%WORKSPACE%\\TestResults" mkdir "%WORKSPACE%\\TestResults"'
-        bat 'npm run test -- --reporter=default --reporter=junit --outputFile="%WORKSPACE%\\TestResults\\tests.junit.xml"'
+        bat 'npm run test:coverage -- --reporter=default --reporter=junit --outputFile="%WORKSPACE%\\TestResults\\tests.junit.xml"'
         bat 'npm run build'
       }
     }
@@ -129,6 +131,8 @@ pipeline {
             /d:sonar.token="%SONAR_TOKEN%" ^
             /d:sonar.exclusions="%SONAR_EXCLUSIONS%" ^
             /d:sonar.coverage.exclusions="%SONAR_COVERAGE_EXCLUSIONS%" ^
+            /d:sonar.javascript.lcov.reportPaths="%SONAR_JS_LCOV_REPORT_PATHS%" ^
+            /d:sonar.test.inclusions="%SONAR_TEST_INCLUSIONS%" ^
             /d:sonar.qualitygate.wait=true ^
             /d:sonar.projectBaseDir="%CD%"
           if errorlevel 1 exit /b %errorlevel%

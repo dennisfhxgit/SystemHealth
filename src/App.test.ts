@@ -42,6 +42,46 @@ function responseFor(url: string) {
     })
   }
 
+  if (url.startsWith('/api/system-health/artifact-history')) {
+    return jsonResponse({
+      status: 'Healthy',
+      statusDetail: 'Jenkins artifact history loaded.',
+      selectedApplicationKey: 'my-life-story-vault',
+      selectedEnvironment: 'Development',
+      selectedBuildCount: 1,
+      jobName: 'SystemHealth',
+      applications: [application],
+      environments: ['Development'],
+      buildCounts: [1, 10, 30],
+      artifacts: [
+        {
+          fileName: 'index.html',
+          displayName: 'index.html',
+          relativePath: '_rollback/25/website-current/index.html',
+          artifactType: 'Rollback Snapshot',
+          isRollbackArtifact: true,
+          size: '1 KB',
+          created: '2026-07-02T10:00:00Z',
+          buildNumber: '25',
+          downloadUrl: 'https://jenkins.fhx.co.nz/job/SystemHealth/25/artifact/_rollback/25/website-current/index.html',
+          logUrl: 'https://jenkins.fhx.co.nz/job/SystemHealth/25/'
+        },
+        {
+          fileName: 'tests.junit.xml',
+          displayName: 'tests.junit.xml',
+          relativePath: 'TestResults/tests.junit.xml',
+          artifactType: 'Build Artifact',
+          isRollbackArtifact: false,
+          size: '1 KB',
+          created: '2026-07-02T10:00:00Z',
+          buildNumber: '25',
+          downloadUrl: 'https://jenkins.fhx.co.nz/job/SystemHealth/25/artifact/TestResults/tests.junit.xml',
+          logUrl: 'https://jenkins.fhx.co.nz/job/SystemHealth/25/'
+        }
+      ]
+    })
+  }
+
   return jsonResponse({
     status: 'Warning',
     statusDetail: 'Runtime provider not configured.',
@@ -78,5 +118,21 @@ describe('standalone SystemHealth app', () => {
     expect(urls.some(url => url.includes('/api/system-health/code-quality-security'))).toBe(true)
     expect(urls.some(url => url.includes('applicationKey=my-life-story-vault'))).toBe(true)
     expect(urls.every(url => !url.includes('applicationKey=') || url.includes('applicationKey=my-life-story-vault'))).toBe(true)
+  })
+
+  it('renders rollback snapshots separately from built artifacts', async () => {
+    const wrapper = mount(App)
+    await flushPromises()
+
+    const artifactButton = wrapper.findAll('button').find(button => button.text() === 'Artifact History')
+    expect(artifactButton).toBeTruthy()
+    await artifactButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Rollback Files: 1')
+    expect(wrapper.text()).toContain('Rollback Snapshots: 1')
+    expect(wrapper.text()).toContain('Build Artifacts: 1')
+    expect(wrapper.text()).toContain('_rollback/25/website-current/index.html')
+    expect(wrapper.text()).toContain('TestResults/tests.junit.xml')
   })
 })
