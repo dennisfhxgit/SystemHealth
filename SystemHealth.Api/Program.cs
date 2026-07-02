@@ -249,6 +249,7 @@ sealed class SystemAlertsOptions
     public int ProcessCpuCriticalPercent { get; set; } = 90;
     public string DeploymentRootPath { get; set; } = string.Empty;
     public string[] ApplicationServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
+    public string[] DataServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
 }
 
 sealed class CriticalHealthEventRequest

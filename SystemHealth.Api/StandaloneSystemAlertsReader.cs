@@ -26,8 +26,10 @@ sealed partial class StandaloneSystemAlertsReader
         var options = Normalize(_options.SystemAlerts);
         var alerts = new List<SystemAlert>();
         var checks = new List<SystemHealthCheck>();
+        var dataServerChecks = new List<SystemHealthCheck>();
 
         var drives = LoadDriveMetrics(options, ApplicationServerSource, alerts, generatedAtUtc);
+        var dataServerDrives = BuildMissingDataServerDrives(options, dataServerChecks, alerts, generatedAtUtc);
         var processCpu = GetCurrentProcessCpuPercent();
         var memoryUsage = GetMemoryUsagePercent();
 
@@ -87,12 +89,9 @@ sealed partial class StandaloneSystemAlertsReader
                 DataServerMemoryUsagePercent = 0
             },
             ApplicationDrives = drives,
-            DataServerDrives = [],
+            DataServerDrives = dataServerDrives,
             Checks = checks,
-            DataServerChecks =
-            [
-                Check("Data server dependency", DataServerSource, HealthyStatus, "No separate data server dependency is required for the standalone SystemHealth app.")
-            ],
+            DataServerChecks = dataServerChecks,
             Alerts = alerts.OrderByDescending(alert => alert.TimestampUtc).ThenBy(alert => alert.Source, StringComparer.OrdinalIgnoreCase).ToArray()
         };
     }
@@ -215,6 +214,25 @@ sealed partial class StandaloneSystemAlertsReader
             UsagePercent = 0,
             Status = WarningStatus
         };
+    }
+
+    private static SystemDriveMetric[] BuildMissingDataServerDrives(
+        SystemAlertsOptions options,
+        List<SystemHealthCheck> checks,
+        List<SystemAlert> alerts,
+        DateTime timestampUtc)
+    {
+        checks.Add(Check("Data Server metrics endpoint", DataServerSource, WarningStatus, "Data Server metrics endpoint is not configured."));
+
+        var drives = options.DataServerDriveLetters
+            .Select(NormalizeDriveName)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(MissingDriveMetric)
+            .ToArray();
+
+        AddDriveAlerts(drives, DataServerSource, options, alerts, timestampUtc);
+        return drives;
     }
 
     private static void AddDriveAlerts(
@@ -375,7 +393,8 @@ sealed partial class StandaloneSystemAlertsReader
             DeploymentRootPath = string.IsNullOrWhiteSpace(options.DeploymentRootPath)
                 ? AppContext.BaseDirectory
                 : options.DeploymentRootPath,
-            ApplicationServerDriveLetters = NormalizeDriveLetters(options.ApplicationServerDriveLetters)
+            ApplicationServerDriveLetters = NormalizeDriveLetters(options.ApplicationServerDriveLetters),
+            DataServerDriveLetters = NormalizeDriveLetters(options.DataServerDriveLetters)
         };
     }
 
