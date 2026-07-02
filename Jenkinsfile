@@ -222,11 +222,31 @@ pipeline {
           Invoke-NativeChecked -Label "$Label robocopy" -FilePath 'robocopy.exe' -Arguments $Arguments -AcceptedExitCodes 0,1,2,3,4,5,6,7
         }
 
+        function Grant-JenkinsLogReadAccess {
+          param(
+            [Parameter(Mandatory=$true)][string]$AppCmd,
+            [Parameter(Mandatory=$true)][string]$AppPoolName,
+            [Parameter(Mandatory=$true)][string]$BuildsRoot
+          )
+
+          if (-not (Test-Path -LiteralPath $BuildsRoot)) {
+            throw "Jenkins builds root not found before ACL grant: $BuildsRoot"
+          }
+
+          $appPoolUser = (& $AppCmd list apppool $AppPoolName /text:processModel.userName).Trim()
+          if ([string]::IsNullOrWhiteSpace($appPoolUser)) {
+            throw "Could not resolve processModel.userName for app pool $AppPoolName."
+          }
+
+          Invoke-NativeChecked -Label "Grant Jenkins log read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($BuildsRoot, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
+        }
+
         $source = Join-Path $env:WORKSPACE $env:PUBLISH_DIR
         $target = $env:TEST12_PATH
         $appPool = $env:TEST12_APPPOOL
         $appOffline = Join-Path $target 'app_offline.htm'
         $appcmd = Join-Path $env:windir 'System32/inetsrv/appcmd.exe'
+        $jenkinsBuildsRoot = 'C:/ProgramData/Jenkins/.jenkins/jobs/SystemHealth/builds'
         $commitFile = Join-Path $env:WORKSPACE $env:BUILD_CHECKOUT_COMMIT_FILE
         $manifestPath = Join-Path $source 'artifact-manifest.json'
 
@@ -295,6 +315,7 @@ pipeline {
           )
 
           Invoke-RobocopyChecked -Label 'SystemHealth Test12' -Arguments $robocopyArgs
+          Grant-JenkinsLogReadAccess -AppCmd $appcmd -AppPoolName $appPool -BuildsRoot $jenkinsBuildsRoot
         }
         finally {
           if (Test-Path -LiteralPath $appOffline) {
