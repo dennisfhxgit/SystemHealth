@@ -314,6 +314,13 @@ pipeline {
           }
 
           Invoke-NativeChecked -Label "Grant CRM runtime secrets read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($SecretsDirectory, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
+
+          $secretsFile = Join-Path $SecretsDirectory 'secrets.json'
+          if (-not (Test-Path -LiteralPath $secretsFile)) {
+            throw "CRM runtime secrets file not found before ACL grant: $secretsFile"
+          }
+
+          Invoke-NativeChecked -Label "Grant CRM runtime secrets file read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($secretsFile, '/grant', "$($appPoolUser):R") -AcceptedExitCodes 0
         }
 
         function Remove-UnsafeRollbackSnapshotFiles {

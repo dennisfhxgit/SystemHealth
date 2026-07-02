@@ -27,15 +27,16 @@ internal sealed class StandaloneEmailWorkersReader
     public async Task<EmailWorkerHealthSnapshotDto> GetAsync(CancellationToken cancellationToken)
     {
         var options = Normalize(_options.EmailWorkers);
-        var runtimeSecrets = LoadRuntimeSecrets(options);
-        var connectionString = ResolveConnectionString(options, runtimeSecrets);
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            return BuildWarning("CRM connection string is not configured for Email Workers.");
-        }
 
         try
         {
+            var runtimeSecrets = LoadRuntimeSecrets(options);
+            var connectionString = ResolveConnectionString(options, runtimeSecrets);
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                return BuildWarning("CRM connection string is not configured for Email Workers.");
+            }
+
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(cancellationToken);
 
