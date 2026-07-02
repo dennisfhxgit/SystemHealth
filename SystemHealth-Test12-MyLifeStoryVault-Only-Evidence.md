@@ -57,8 +57,15 @@ MyLifeStoryVault-Ltd/My-Life-Story-Vault
 - API base URL: `/api`
 - GitHub repository source: `MyLifeStoryVault-Ltd/My-Life-Story-Vault`
 - Jenkins job/source: `SystemHealth`
-- Sonar project/source: `My-Life-Story-Vault`
+- Sonar project/source: `MyLifeStoryVault-Ltd_My-Life-Story-Vault`
 - Runtime secrets required: provider credentials for GitHub, Jenkins, and SonarQube if live provider data is enabled. Secret values are not stored in source.
+
+## Code Quality & Security Wiring
+
+- `/api/system-health/code-quality-security` now reads live SonarQube data when `SystemHealth__SonarQube__BaseUrl`, `SystemHealth__SonarQube__ProjectKey`, and `SystemHealth__SonarQube__Token` are configured at runtime.
+- The endpoint reads GitHub Dependabot, CodeQL, and Secret Scanning alerts for `MyLifeStoryVault-Ltd/My-Life-Story-Vault` when `SystemHealth__Repository__GitHubToken` is configured at runtime.
+- The endpoint parses configured Jenkins artifacts for Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright rather than returning placeholder rows.
+- Missing provider credentials or missing artifact paths are reported as `Unavailable`; they are not treated as healthy zero-finding results.
 
 ## Verification Results
 
@@ -70,6 +77,7 @@ MyLifeStoryVault-Ltd/My-Life-Story-Vault
 - Backend build command and result: `dotnet build SystemHealth.sln -c Release` passed with 0 warnings and 0 errors.
 - Backend test command and result: `dotnet test SystemHealth.sln -c Release --no-build` exited successfully; no backend test project exists yet.
 - Publish command and result: `dotnet publish SystemHealth.Api\SystemHealth.Api.csproj -c Release -o _publish` passed after rerunning serially. The first parallel build/publish attempt hit a transient static asset compression file lock.
+- Code Quality & Security smoke-test result: local published app on `http://127.0.0.1:5012` returned HTTP 200 for `/api/system-health/code-quality-security`, reported repository `MyLifeStoryVault-Ltd/My-Life-Story-Vault`, Sonar project `MyLifeStoryVault-Ltd_My-Life-Story-Vault`, and provider statuses for SonarQube, GitHub Dependabot, GitHub CodeQL, GitHub Secret Scanning, Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright.
 - Endpoint smoke-test results: local published app on `http://127.0.0.1:5012` returned HTTP 200 for `/health`, `/`, `/api/system-health/code-quality-security`, `/api/system-health/system-alerts`, `/api/system-health/admin-environment`, `/api/system-health/email-workers`, `/api/system-health/critical-events`, `/api/system-health/backups`, `/api/system-health/jenkins-log`, `/api/system-health/test-results`, `/api/system-health/artifact-history`, and `/api/system-health/ai-code-analysis`.
 - Refresh/deep-link routing: local published app returned HTTP 200 and the Vue root for `/system-health`, `/system-health/code-quality-security`, and `/anything/deep/link`.
 - Deployment notes: source includes a Jenkins `SystemHealth` pipeline that checks out `dennisfhxgit/SystemHealth` `master`, runs frontend install/typecheck/lint/test/build, runs backend restore/build/test/publish, deploys the publish artifact to `W:\vhosts\fhx.co.nz\test12.fhx.co.nz`, restarts app pool `test12.fhx.co.nz(domain)(4.0)(pool)`, and runs Test12 endpoint/deep-link smoke checks. The live Jenkins `SystemHealth` job config was changed from an empty flow definition to an SCM pipeline that loads this repo `Jenkinsfile`; the previous config was backed up under `C:\Users\mldconst\Desktop\Handovers\JenkinsConfigBackups`.

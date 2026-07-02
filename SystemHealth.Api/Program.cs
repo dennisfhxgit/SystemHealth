@@ -14,6 +14,14 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
     return options;
 });
 builder.Services.AddSingleton<SystemHealthSnapshots>();
+builder.Services.AddSingleton<CodeQualitySecurityService>();
+builder.Services.AddHttpClient("github", client =>
+{
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("SystemHealth-Test12/1.0");
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+    client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+});
+builder.Services.AddHttpClient("sonarqube");
 
 var app = builder.Build();
 
@@ -21,7 +29,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 var api = app.MapGroup("/api/system-health");
-api.MapGet("/code-quality-security", (SystemHealthSnapshots snapshots) => snapshots.CodeQualitySecurity());
+api.MapGet("/code-quality-security", (CodeQualitySecurityService service, CancellationToken cancellationToken) => service.GetAsync(cancellationToken));
 api.MapGet("/jenkins-log", (SystemHealthSnapshots snapshots) => snapshots.JenkinsLog());
 api.MapGet("/test-results", (SystemHealthSnapshots snapshots) => snapshots.TestResults());
 api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.AiCodeAnalysis());
@@ -68,70 +76,6 @@ sealed class SystemHealthSnapshots
     public SystemHealthSnapshots(SystemHealthOptions options)
     {
         _options = options;
-    }
-
-    public IResult CodeQualitySecurity()
-    {
-        var providerStatuses = new List<object>
-        {
-            ProviderStatus("GitHub", "Warning", "GitHub token/base integration is runtime configuration. No committed credential is required."),
-            ProviderStatus("SonarQube", IsConfigured(_options.SonarQube.BaseUrl) ? "Warning" : "Warning", IsConfigured(_options.SonarQube.BaseUrl) ? "SonarQube can be queried when runtime credentials are configured." : "SonarQube base URL is not configured in source."),
-            ProviderStatus("Jenkins", IsConfigured(_options.Jenkins.BaseUrl) ? "Warning" : "Warning", IsConfigured(_options.Jenkins.BaseUrl) ? "Jenkins can be queried when runtime credentials are configured." : "Jenkins base URL is not configured in source."),
-            ProviderStatus("MSSQL", "Unavailable", "MSSQL is intentionally not used by the standalone Test12 SystemHealth app.")
-        };
-
-        return Results.Json(new
-        {
-            status = "Warning",
-            statusDetail = "Provider credentials and artifacts must be supplied through Test12 runtime configuration; no MSSQL or login dependency is required.",
-            generatedAtUtc = DateTimeOffset.UtcNow,
-            selectedApplicationKey = ApplicationKey,
-            selectedEnvironment = EnvironmentName,
-            applications = Applications(),
-            environments = Environments(),
-            providerStatuses,
-            sonarProjectKey = _options.SonarQube.ProjectKey,
-            sonarMetrics = Array.Empty<object>(),
-            vulnerabilities = Array.Empty<object>(),
-            bugs = Array.Empty<object>(),
-            codeSmells = Array.Empty<object>(),
-            gitHubRepository = $"{_options.Repository.Owner}/{_options.Repository.Name}",
-            gitHubSeverityCounts = SeverityCounts(),
-            gitHubAlerts = Array.Empty<object>(),
-            gitHubCodeScanningSeverityCounts = SeverityCounts(),
-            gitHubCodeScanningAlerts = Array.Empty<object>(),
-            gitHubSecretScanningCounts = new[] { new { key = "OPEN", label = "Open", count = 0 } },
-            gitHubSecretScanningAlerts = Array.Empty<object>(),
-            lintStatus = ArtifactStatus(_options.Artifacts.LintReportPath),
-            lintStatusDetail = ArtifactDetail(_options.Artifacts.LintReportPath, "Lint & Standards"),
-            lintErrorCount = 0,
-            lintWarningCount = 0,
-            lintToolsTotal = 0,
-            lintToolsPassed = 0,
-            lintToolsFailed = 0,
-            lintToolsNotApplicable = 0,
-            lintToolsNotConfigured = 0,
-            lintFindings = Array.Empty<object>(),
-            lintDisplayedCount = 0,
-            lintTotalFindings = 0,
-            dependencyCheckStatus = ArtifactStatus(_options.Artifacts.DependencyCheckReportPath),
-            dependencyCheckStatusDetail = ArtifactDetail(_options.Artifacts.DependencyCheckReportPath, "OWASP Dependency-Check"),
-            dependencyCheckSeverityCounts = SeverityCounts(),
-            dependencyCheckVulnerabilityCount = 0,
-            dependencyCheckFindings = Array.Empty<object>(),
-            cycloneDxStatus = "Unavailable",
-            cycloneDxStatusDetail = "CycloneDX SBOM artifact path is not configured.",
-            cycloneDxComponents = Array.Empty<object>(),
-            cycloneDxComponentCount = 0,
-            playwrightStatus = ArtifactStatus(_options.Artifacts.PlaywrightReportPath),
-            playwrightStatusDetail = ArtifactDetail(_options.Artifacts.PlaywrightReportPath, "Playwright"),
-            playwrightTotalTests = 0,
-            playwrightPassedTests = 0,
-            playwrightFailedTests = 0,
-            playwrightSkippedTests = 0,
-            playwrightResults = Array.Empty<object>(),
-            playwrightWorkflowContracts = Array.Empty<object>()
-        });
     }
 
     public IResult JenkinsLog()
@@ -285,18 +229,7 @@ sealed class SystemHealthSnapshots
     private static object[] Applications() => new[] { new { key = ApplicationKey, label = ApplicationLabel } };
     private static string[] Environments() => new[] { EnvironmentName };
     private static object[] SeverityCounts() => new[] { new { severity = "Critical", count = 0 }, new { severity = "High", count = 0 }, new { severity = "Medium", count = 0 }, new { severity = "Low", count = 0 } };
-    private static object ProviderStatus(string provider, string status, string detail) => new { provider, status, detail };
     private static bool IsConfigured(string? value) => !string.IsNullOrWhiteSpace(value);
-    private static string ArtifactStatus(string? path) => IsConfigured(path) ? File.Exists(path) ? "Healthy" : "Warning" : "Unavailable";
-    private static string ArtifactDetail(string? path, string name)
-    {
-        if (!IsConfigured(path))
-        {
-            return $"{name} artifact path is not configured.";
-        }
-
-        return File.Exists(path) ? $"{name} artifact exists at the configured runtime path." : $"{name} artifact was not found at the configured runtime path.";
-    }
 }
 
 sealed class SystemHealthOptions
@@ -315,24 +248,30 @@ sealed class RepositoryOptions
     public string Name { get; set; } = "My-Life-Story-Vault";
     public string Url { get; set; } = "https://github.com/MyLifeStoryVault-Ltd/My-Life-Story-Vault";
     public string Ref { get; set; } = "main";
+    public string GitHubApiBaseUrl { get; set; } = "https://api.github.com";
+    public string GitHubToken { get; set; } = string.Empty;
 }
 
 sealed class JenkinsOptions
 {
     public string BaseUrl { get; set; } = string.Empty;
     public string JobName { get; set; } = "SystemHealth";
+    public string UserName { get; set; } = string.Empty;
+    public string ApiToken { get; set; } = string.Empty;
 }
 
 sealed class SonarQubeOptions
 {
     public string BaseUrl { get; set; } = string.Empty;
-    public string ProjectKey { get; set; } = "My-Life-Story-Vault";
+    public string ProjectKey { get; set; } = "MyLifeStoryVault-Ltd_My-Life-Story-Vault";
+    public string Token { get; set; } = string.Empty;
 }
 
 sealed class ArtifactOptions
 {
     public string DependencyCheckReportPath { get; set; } = string.Empty;
     public string LintReportPath { get; set; } = string.Empty;
+    public string CycloneDxBomPath { get; set; } = string.Empty;
     public string PlaywrightReportPath { get; set; } = string.Empty;
     public string AiCodeAnalysisPath { get; set; } = string.Empty;
 }

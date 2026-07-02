@@ -25,7 +25,10 @@ function responseFor(url: string) {
       applications: [application],
       environments: ['Development'],
       providerStatuses: [
-        { provider: 'MSSQL', status: 'Unavailable', detail: 'MSSQL is intentionally not used.' }
+        { provider: 'SonarQube', status: 'Unavailable', detail: 'Runtime SonarQube configuration is required.' },
+        { provider: 'GitHub Dependabot', status: 'Unavailable', detail: 'Runtime GitHub token is required.' },
+        { provider: 'GitHub CodeQL', status: 'Unavailable', detail: 'Runtime GitHub token is required.' },
+        { provider: 'GitHub Secret Scanning', status: 'Unavailable', detail: 'Runtime GitHub token is required.' }
       ],
       sonarMetrics: [],
       gitHubSeverityCounts: [],

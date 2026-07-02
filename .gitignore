@@ -2,6 +2,7 @@ node_modules/
 dist/
 _publish/
 _jenkins/
+build_provenance.env
 *.tsbuildinfo
 bin/
 obj/
