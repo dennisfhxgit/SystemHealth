@@ -17,3 +17,7 @@ dotnet publish .\SystemHealth.Api\SystemHealth.Api.csproj -c Release -o .\_publi
 ## Runtime Configuration
 
 Configure non-secret values under `SystemHealth` in `SystemHealth.Api/appsettings.json` or environment variables. Secrets such as GitHub, Jenkins, and SonarQube credentials must remain outside source.
+
+## Agent Notes
+
+Detailed repo-orientation notes are in [`docs/agent-guide.md`](docs/agent-guide.md).
