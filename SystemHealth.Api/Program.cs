@@ -15,6 +15,7 @@ builder.Services.AddSingleton<SystemHealthOptions>(sp =>
 });
 builder.Services.AddHttpClient<JenkinsTestResultsReader>();
 builder.Services.AddHttpClient<JenkinsLogReader>();
+builder.Services.AddHttpClient<JenkinsArtifactHistoryReader>();
 builder.Services.AddSingleton<SystemHealthSnapshots>();
 builder.Services.AddSingleton<StandaloneCodeQualitySecurityEndpoint>();
 builder.Services.AddHttpClient<CRM.Application.SystemHealth.CodeQualitySecurityService>();
@@ -39,7 +40,7 @@ api.MapGet("/ai-code-analysis", (SystemHealthSnapshots snapshots) => snapshots.A
 api.MapGet("/system-alerts", () => Results.Json(SystemHealthSnapshots.SystemAlerts()));
 api.MapGet("/admin-environment", (SystemHealthOptions options) => Results.Json(SystemHealthSnapshots.AdminEnvironment(options)));
 api.MapGet("/email-workers", () => Results.Json(SystemHealthSnapshots.EmailWorkers()));
-api.MapGet("/artifact-history", (SystemHealthSnapshots snapshots, int? buildCount) => snapshots.ArtifactHistory(buildCount ?? 1));
+api.MapGet("/artifact-history", (SystemHealthSnapshots snapshots, string? application, string? applicationKey, string? environment, int? buildCount, CancellationToken cancellationToken) => snapshots.ArtifactHistoryAsync(application ?? applicationKey, environment, buildCount, cancellationToken));
 api.MapGet("/backups", () => Results.Json(SystemHealthSnapshots.Unavailable("Backups", "Backups are not configured for the standalone Test12 SystemHealth app.")));
 api.MapGet("/critical-events", () => Results.Json(new { sections = Array.Empty<CriticalHealthSection>() }));
 api.MapPost("/critical-events", (CriticalHealthEventRequest request) =>
@@ -77,12 +78,14 @@ sealed class SystemHealthSnapshots
     private readonly SystemHealthOptions _options;
     private readonly JenkinsTestResultsReader _testResultsReader;
     private readonly JenkinsLogReader _jenkinsLogReader;
+    private readonly JenkinsArtifactHistoryReader _artifactHistoryReader;
 
-    public SystemHealthSnapshots(SystemHealthOptions options, JenkinsTestResultsReader testResultsReader, JenkinsLogReader jenkinsLogReader)
+    public SystemHealthSnapshots(SystemHealthOptions options, JenkinsTestResultsReader testResultsReader, JenkinsLogReader jenkinsLogReader, JenkinsArtifactHistoryReader artifactHistoryReader)
     {
         _options = options;
         _testResultsReader = testResultsReader;
         _jenkinsLogReader = jenkinsLogReader;
+        _artifactHistoryReader = artifactHistoryReader;
     }
 
     public async Task<IResult> JenkinsLogAsync(string? applicationKey, string? environment, string? buildId, CancellationToken cancellationToken)
@@ -119,21 +122,9 @@ sealed class SystemHealthSnapshots
         });
     }
 
-    public IResult ArtifactHistory(int buildCount)
+    public async Task<IResult> ArtifactHistoryAsync(string? applicationKey, string? environment, int? buildCount, CancellationToken cancellationToken)
     {
-        return Results.Json(new
-        {
-            status = "Warning",
-            statusDetail = "Jenkins artifact history is not configured in source.",
-            selectedApplicationKey = ApplicationKey,
-            selectedEnvironment = EnvironmentName,
-            applications = Applications(),
-            environments = Environments(),
-            jobName = _options.Jenkins.JobName,
-            selectedBuildCount = buildCount,
-            buildCounts = new[] { 1, 10, 30, 50, 100 },
-            artifacts = Array.Empty<object>()
-        });
+        return Results.Json(await _artifactHistoryReader.GetAsync(_options, applicationKey, environment, buildCount, cancellationToken));
     }
 
     public static object SystemAlerts()
@@ -233,7 +224,7 @@ sealed class RepositoryOptions
 
 sealed class JenkinsOptions
 {
-    public string BaseUrl { get; set; } = string.Empty;
+    public string BaseUrl { get; set; } = "https://jenkins.fhx.co.nz";
     public string JobName { get; set; } = "SystemHealth";
     public string UserName { get; set; } = string.Empty;
     public string ApiToken { get; set; } = string.Empty;
