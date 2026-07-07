@@ -323,6 +323,27 @@ pipeline {
           Invoke-NativeChecked -Label "Grant CRM runtime secrets file read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($secretsFile, '/grant', "$($appPoolUser):R") -AcceptedExitCodes 0
         }
 
+        function Grant-DependencyCheckReportReadAccess {
+          param(
+            [Parameter(Mandatory=$true)][string]$AppCmd,
+            [Parameter(Mandatory=$true)][string]$AppPoolName,
+            [Parameter(Mandatory=$true)][string]$ReportPath
+          )
+
+          if (-not (Test-Path -LiteralPath $ReportPath)) {
+            throw "Dependency-Check report not found before ACL grant: $ReportPath"
+          }
+
+          $reportDirectory = Split-Path -Parent $ReportPath
+          $appPoolUser = (& $AppCmd list apppool $AppPoolName /text:processModel.userName).Trim()
+          if ([string]::IsNullOrWhiteSpace($appPoolUser)) {
+            throw "Could not resolve processModel.userName for app pool $AppPoolName."
+          }
+
+          Invoke-NativeChecked -Label "Grant Dependency-Check report directory read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($reportDirectory, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
+          Invoke-NativeChecked -Label "Grant Dependency-Check report file read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($ReportPath, '/grant', "$($appPoolUser):R") -AcceptedExitCodes 0
+        }
+
         function Remove-UnsafeRollbackSnapshotFiles {
           param([Parameter(Mandatory=$true)][string]$RollbackRoot)
 
@@ -367,6 +388,7 @@ pipeline {
         $appOffline = Join-Path $target 'app_offline.htm'
         $appcmd = Join-Path $env:windir 'System32/inetsrv/appcmd.exe'
         $jenkinsBuildsRoot = 'C:/ProgramData/Jenkins/.jenkins/jobs/SystemHealth/builds'
+        $dependencyCheckReportPath = 'C:/ProgramData/Jenkins/.jenkins/workspace/MyLifeStoryVaultTest/_jenkins/dependency-check/dependency-check-report.json'
         $commitFile = Join-Path $env:WORKSPACE $env:BUILD_CHECKOUT_COMMIT_FILE
         $manifestPath = Join-Path $source 'artifact-manifest.json'
 
@@ -474,6 +496,7 @@ pipeline {
           Invoke-RobocopyChecked -Label 'SystemHealth Test12' -Arguments $robocopyArgs
           Grant-JenkinsLogReadAccess -AppCmd $appcmd -AppPoolName $appPool -BuildsRoot $jenkinsBuildsRoot
           Grant-CrmRuntimeSecretsReadAccess -AppCmd $appcmd -AppPoolName $appPool -SecretsDirectory $env:CRM_RUNTIME_SECRETS_DIR
+          Grant-DependencyCheckReportReadAccess -AppCmd $appcmd -AppPoolName $appPool -ReportPath $dependencyCheckReportPath
         }
         finally {
           if (Test-Path -LiteralPath $appOffline) {
