@@ -335,11 +335,13 @@ pipeline {
           }
 
           $reportDirectory = Split-Path -Parent $ReportPath
+          $reportWorkspaceRoot = Split-Path -Parent (Split-Path -Parent $reportDirectory)
           $appPoolUser = (& $AppCmd list apppool $AppPoolName /text:processModel.userName).Trim()
           if ([string]::IsNullOrWhiteSpace($appPoolUser)) {
             throw "Could not resolve processModel.userName for app pool $AppPoolName."
           }
 
+          Invoke-NativeChecked -Label "Grant Dependency-Check workspace inheritance to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($reportWorkspaceRoot, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
           Invoke-NativeChecked -Label "Grant Dependency-Check report directory read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($reportDirectory, '/grant', "$($appPoolUser):(OI)(CI)RX") -AcceptedExitCodes 0
           Invoke-NativeChecked -Label "Grant Dependency-Check report file read access to $appPoolUser" -FilePath 'icacls.exe' -Arguments @($ReportPath, '/grant', "$($appPoolUser):R") -AcceptedExitCodes 0
         }
