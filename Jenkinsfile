@@ -525,6 +525,35 @@ pipeline {
           Write-Host "$uri returned HTTP 200"
         }
 
+        $codeQualityUri = "$env:TEST12_URL/api/system-health/code-quality-security"
+        $codeQuality = (Invoke-WebRequest -Uri $codeQualityUri -UseBasicParsing -TimeoutSec 30).Content | ConvertFrom-Json
+        if ([string]$codeQuality.dependencyCheckProjectName -ne 'My-Life-Story-Vault') {
+          throw "Test12 OWASP project mismatch. expected=My-Life-Story-Vault actual=$($codeQuality.dependencyCheckProjectName)"
+        }
+
+        if ([string]::IsNullOrWhiteSpace([string]$codeQuality.dependencyCheckReportPath) -or [string]$codeQuality.dependencyCheckReportPath -notlike '*\workspace\MyLifeStoryVaultTest\_jenkins\dependency-check\dependency-check-report.json') {
+          throw "Test12 OWASP report path is not the trusted MyLifeStoryVaultTest Jenkins artifact: $($codeQuality.dependencyCheckReportPath)"
+        }
+
+        if ([string]$codeQuality.dependencyCheckStatusDetail -like '*scan trust checks failed*') {
+          throw "Test12 OWASP scan trust failed: $($codeQuality.dependencyCheckStatusDetail)"
+        }
+
+        if ($null -eq $codeQuality.dependencyCheckReportDateUtc) {
+          throw 'Test12 OWASP report date is missing.'
+        }
+
+        $owaspReportAge = (Get-Date).ToUniversalTime() - ([datetime]$codeQuality.dependencyCheckReportDateUtc).ToUniversalTime()
+        if ($owaspReportAge.TotalHours -gt 48) {
+          throw "Test12 OWASP report is stale at $([math]::Floor($owaspReportAge.TotalHours)) hours old."
+        }
+
+        if ([int]$codeQuality.dependencyCheckDependenciesScanned -lt 20) {
+          throw "Test12 OWASP dependency count is below trust minimum: $($codeQuality.dependencyCheckDependenciesScanned)"
+        }
+
+        Write-Host "Test12 OWASP trust smoke passed: $($codeQuality.dependencyCheckDependenciesScanned) dependencies from $($codeQuality.dependencyCheckReportPath)"
+
         & (Join-Path $env:WORKSPACE 'scripts/ci/Write-SystemHealthApiPerformanceResults.ps1') `
           -BaseUrl $env:TEST12_URL `
           -OutputPath (Join-Path $env:WORKSPACE 'TestResults/api-performance.junit.xml') `

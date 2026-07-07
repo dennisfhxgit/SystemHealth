@@ -161,7 +161,7 @@ sealed class SonarQubeOptions
 
 sealed class ArtifactOptions
 {
-    public string DependencyCheckReportPath { get; set; } = string.Empty;
+    public string DependencyCheckReportPath { get; set; } = @"C:\ProgramData\Jenkins\.jenkins\workspace\MyLifeStoryVaultTest\_jenkins\dependency-check\dependency-check-report.json";
     public string LintReportPath { get; set; } = string.Empty;
     public string CycloneDxBomPath { get; set; } = string.Empty;
     public string PlaywrightReportPath { get; set; } = string.Empty;

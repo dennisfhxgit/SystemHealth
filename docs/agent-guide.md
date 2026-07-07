@@ -171,7 +171,7 @@ The Jenkins pipeline writes code quality artifacts to:
 C:/ProgramData/Jenkins/.jenkins/fhx-system-health/SystemHealth/latest
 ```
 
-The API reads those artifacts and returns the Code Quality & Security and AI Code Analysis data. Avoid ad hoc parsing when a script already writes a structured artifact.
+The API reads those artifacts and returns the Code Quality & Security and AI Code Analysis data. OWASP Dependency-Check is the exception: Test12 must read the current My Life Story Vault Jenkins artifact at `C:/ProgramData/Jenkins/.jenkins/workspace/MyLifeStoryVaultTest/_jenkins/dependency-check/dependency-check-report.json` so stale SystemHealth dashboard artifacts cannot satisfy or fail scan trust. Avoid ad hoc parsing when a script already writes a structured artifact.
 
 ### Jenkins Logs, Test Results, Artifact History, AI Code Analysis
 
@@ -455,4 +455,3 @@ C:\ProgramData\FHX\CRM\secrets\test11.fhx.co.nz(domain)(4.0)(pool)\secrets.json
 Application server metrics snapshot:
 C:\ProgramData\FHX\SystemHealth\test11-application-server-metrics.json
 ```
-

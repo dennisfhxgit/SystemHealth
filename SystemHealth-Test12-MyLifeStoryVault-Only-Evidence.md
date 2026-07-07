@@ -68,10 +68,11 @@ MyLifeStoryVault-Ltd/My-Life-Story-Vault
 - The endpoint reads GitHub Dependabot, CodeQL freshness/alerts, and Secret Scanning alerts for `MyLifeStoryVault-Ltd/My-Life-Story-Vault` when `SystemHealth__Repository__GitHubToken` is configured at runtime.
 - The endpoint uses the CRM hardened artifact discovery/trust logic for Lint & Standards, OWASP Dependency-Check, CycloneDX SBOM, and Playwright rather than returning placeholder rows.
 - The `SystemHealth` deployment Jenkinsfile does not run MyLifeStoryVault mobile/backend CI during deployment. Code Quality & Security is served by the CRM hardened endpoint/client logic and provider/artifact discovery, without blocking the SystemHealth deploy path on another repository's coverage run.
+- OWASP Dependency-Check for Test12 is explicitly read from the current `MyLifeStoryVaultTest` Jenkins artifact at `C:\ProgramData\Jenkins\.jenkins\workspace\MyLifeStoryVaultTest\_jenkins\dependency-check\dependency-check-report.json`. The Test12 smoke stage fails if OWASP falls back to the stale `fhx-system-health\SystemHealth\latest` dashboard artifact, if scan trust fails, if the report is older than 48 hours, or if fewer than 20 dependencies were scanned.
 - The optional artifact producer is `scripts/ci/Write-MyLifeStoryVaultCodeQualityArtifacts.ps1`; it can write `lint-report.json`, a CycloneDX SBOM, and OWASP Dependency-Check reports for `My-Life-Story-Vault` when run separately from the deployment path.
 - The optional artifact producer has hard command timeouts: restore commands default to 10 minutes, normal lint/test/build commands default to 5 minutes, and Dependency-Check defaults to 15 minutes. A timeout is written into `lint-report.json` as a failing finding instead of leaving the producer stuck without artifacts.
 - Missing provider credentials or missing artifact paths are reported as `Unavailable`; they are not treated as healthy zero-finding results.
-- The old `MyLifeStoryVaultTest` Jenkins job that points at `dennisfhxgit/MyLifeStoryVaultTest` is not used. Code Quality & Security for this standalone app is scoped to `MyLifeStoryVault-Ltd/My-Life-Story-Vault` through configuration and provider lookups.
+- The `MyLifeStoryVaultTest` Jenkins job is used only as the trusted OWASP artifact producer for Test12 scan provenance. Code Quality & Security remains scoped to `MyLifeStoryVault-Ltd/My-Life-Story-Vault` for repository and provider lookups.
 
 ## Verification Results
 
