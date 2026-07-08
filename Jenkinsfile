@@ -556,7 +556,9 @@ pipeline {
           throw "Test12 OWASP project mismatch. expected=My-Life-Story-Vault actual=$($codeQuality.dependencyCheckProjectName)"
         }
 
-        if ([string]::IsNullOrWhiteSpace([string]$codeQuality.dependencyCheckReportPath) -or [string]$codeQuality.dependencyCheckReportPath -notlike '*\workspace\MyLifeStoryVaultTest\_jenkins\dependency-check\dependency-check-report.json') {
+        $dependencyCheckReportPath = [string]$codeQuality.dependencyCheckReportPath
+        $normalizedDependencyCheckReportPath = $dependencyCheckReportPath.Replace('\\', '/')
+        if ([string]::IsNullOrWhiteSpace($dependencyCheckReportPath) -or $normalizedDependencyCheckReportPath -notlike '*/workspace/MyLifeStoryVaultTest/_jenkins/dependency-check/dependency-check-report.json') {
           throw "Test12 OWASP report path is not the trusted MyLifeStoryVaultTest Jenkins artifact: $($codeQuality.dependencyCheckReportPath)"
         }
 
