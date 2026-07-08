@@ -21,7 +21,7 @@ pipeline {
     TEST12_PATH = 'W:/vhosts/fhx.co.nz/test12.fhx.co.nz'
     TEST12_APPPOOL = 'test12.fhx.co.nz(domain)(4.0)(pool)'
     TEST12_URL = 'https://test12.fhx.co.nz'
-    CRM_RUNTIME_SECRETS_DIR = 'C:/ProgramData/FHX/CRM/secrets/test11.fhx.co.nz(domain)(4.0)(pool)'
+    CRM_RUNTIME_SECRETS_DIR = 'C:/ProgramData/FHX/CRM/secrets/test12.fhx.co.nz(domain)(4.0)(pool)'
     SONAR_PROJECT_KEY = 'SystemHealth'
     SONAR_HOST_URL = 'https://sonarqube.fhx.co.nz'
     SONAR_EXCLUSIONS = '**/bin/**,**/obj/**,**/dist/**,**/node_modules/**,_jenkins/**,TestResults/**,coverage/**'

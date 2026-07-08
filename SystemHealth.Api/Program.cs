@@ -199,7 +199,7 @@ sealed class SystemAlertsOptions
     public string DeploymentRootPath { get; set; } = string.Empty;
     public string[] ApplicationServerDriveLetters { get; set; } = ["B:\\", "C:\\", "W:\\"];
     public string[] DataServerDriveLetters { get; set; } = ["C:\\", "D:\\", "L:\\"];
-    public string ApplicationServerMetricsSnapshotPath { get; set; } = @"C:\ProgramData\FHX\SystemHealth\test11-application-server-metrics.json";
+    public string ApplicationServerMetricsSnapshotPath { get; set; } = @"C:\ProgramData\FHX\SystemHealth\test12-application-server-metrics.json";
     public int ApplicationServerMetricsSnapshotMaxAgeMinutes { get; set; } = 30;
     public string DataServerMetricsUrl { get; set; } = string.Empty;
 }
